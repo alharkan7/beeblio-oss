@@ -8,9 +8,11 @@ import {
   Copy,
   Code2,
   Download,
+  Eye,
   FileJson,
   FileSpreadsheet,
   FileText,
+  GripVertical,
   Info,
   Loader2,
   MoreHorizontal,
@@ -60,6 +62,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { parseBibtexEntries } from "@/lib/bibtex";
 import { ASK_AGENT_EVENT, OPEN_WORKSPACE_FILE_EVENT } from "@/lib/chat-context";
 import {
+  DERIVED_COLUMN_SOURCES,
   addMatrixColumn,
   matrixColumnLabel,
   matrixToCsv,
@@ -71,6 +74,7 @@ import {
   serializeMatrix,
   type CitationLookup,
   type CustomColumn,
+  type DerivedColumnSource,
   type LiteratureMatrix,
   type ResolvedMatrixRow,
 } from "@/lib/literature-matrix";
@@ -101,9 +105,12 @@ export function MatrixEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceE
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [addStudiesOpen, setAddStudiesOpen] = useState(false);
   const [renameColumn, setRenameColumn] = useState<CustomColumn>();
-  const [renameLabel, setRenameLabel] = useState("");
-  const [renameDescription, setRenameDescription] = useState("");
   const [deleteColumn, setDeleteColumn] = useState<LiteratureMatrix["columns"][number]>();
+  const [removeRowTarget, setRemoveRowTarget] = useState<{ citationKey: string; title: string }>();
+  const [draggedColumnId, setDraggedColumnId] = useState<string>();
+  const [columnDropTarget, setColumnDropTarget] = useState<{ id: string; side: "before" | "after" }>();
+  const [draggedRowKey, setDraggedRowKey] = useState<string>();
+  const [rowDropTarget, setRowDropTarget] = useState<{ key: string; side: "before" | "after" }>();
   const [detailReference, setDetailReference] = useState<ReferenceDetail>();
   const initialCitationsProjectRef = useRef<string | undefined>(undefined);
 
@@ -318,8 +325,6 @@ export function MatrixEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceE
 
   const openColumnMenuAction = (column: CustomColumn, action: "rename" | "fill" | "delete") => {
     if (action === "rename") {
-      setRenameLabel(column.label);
-      setRenameDescription(column.description ?? "");
       setRenameColumn(column);
     } else if (action === "fill") {
       askAgent(`Fill the "${column.label}" column of this literature matrix for every study${column.description ? ` (the column compares: ${column.description})` : ""}.`);
@@ -342,15 +347,14 @@ export function MatrixEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceE
     }
   };
 
-  const confirmRenameColumn = () => {
+  const confirmRenameColumn = (label: string, description: string) => {
     if (!matrix || !renameColumn) return;
-    const label = renameLabel.trim();
     if (!label) return;
     updateMatrix({
       ...matrix,
       columns: matrix.columns.map((column) =>
         column.id === renameColumn.id
-          ? { ...column, label, description: renameDescription.trim() || undefined }
+          ? { ...column, label, description: description || undefined }
           : column,
       ),
     });
@@ -372,6 +376,52 @@ export function MatrixEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceE
   const removeRow = (citationKey: string) => {
     if (!matrix) return;
     updateMatrix(removeMatrixRows(matrix, [citationKey]).matrix);
+    setRemoveRowTarget(undefined);
+  };
+
+  const showDerivedColumn = (source: DerivedColumnSource) => {
+    if (!matrix || matrix.columns.some((column) => column.id === source)) return;
+    updateMatrix({ ...matrix, columns: [...matrix.columns, { kind: "derived", id: source, source }] });
+  };
+
+  const dropColumn = (targetId: string, side: "before" | "after") => {
+    if (matrix && draggedColumnId && draggedColumnId !== targetId) {
+      const columns = [...matrix.columns];
+      const from = columns.findIndex((column) => column.id === draggedColumnId);
+      if (from !== -1) {
+        const [moved] = columns.splice(from, 1);
+        const target = columns.findIndex((column) => column.id === targetId);
+        if (target !== -1) {
+          columns.splice(target + (side === "after" ? 1 : 0), 0, moved);
+          updateMatrix({ ...matrix, columns });
+        }
+      }
+    }
+    setDraggedColumnId(undefined);
+    setColumnDropTarget(undefined);
+  };
+
+  const dropRow = (targetKey: string, side: "before" | "after") => {
+    if (matrix && draggedRowKey && draggedRowKey !== targetKey) {
+      const visibleKeys = visibleRows.map((row) => row.citationKey);
+      const from = visibleKeys.indexOf(draggedRowKey);
+      if (from !== -1) {
+        const [movedKey] = visibleKeys.splice(from, 1);
+        const target = visibleKeys.indexOf(targetKey);
+        if (target !== -1) {
+          visibleKeys.splice(target + (side === "after" ? 1 : 0), 0, movedKey);
+          const byKey = new Map(matrix.rows.map((row) => [row.citationKey, row]));
+          const visibleSet = new Set(visibleKeys);
+          const orderedVisibleRows = visibleKeys.map((key) => byKey.get(key)!);
+          let nextVisible = 0;
+          const rows = matrix.rows.map((row) => visibleSet.has(row.citationKey) ? orderedVisibleRows[nextVisible++] : row);
+          updateMatrix({ ...matrix, rows });
+          setSort(undefined);
+        }
+      }
+    }
+    setDraggedRowKey(undefined);
+    setRowDropTarget(undefined);
   };
 
   const submitAiColumn = (description: string) => {
@@ -437,6 +487,9 @@ export function MatrixEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceE
 
   const readOnly = Boolean(publicView.shareId);
   const columns = matrix?.columns ?? [];
+  const hiddenDerivedColumns = DERIVED_COLUMN_SOURCES.filter(
+    (source) => !columns.some((column) => column.id === source),
+  );
   const status = parsed && !parsed.ok
     ? <span className="mr-2 flex items-center gap-1.5 text-xs font-medium text-destructive"><TriangleAlert className="size-3.5" />{parsed.message}</span>
     : (
@@ -526,6 +579,20 @@ export function MatrixEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceE
                 />
               </div>
               <div className="ml-auto flex shrink-0 items-center gap-2">
+                {hiddenDerivedColumns.length > 0 ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="xs" variant="outline"><Eye />Metadata</Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {hiddenDerivedColumns.map((source) => (
+                        <DropdownMenuItem key={source} onSelect={() => showDerivedColumn(source)}>
+                          {matrixColumnLabel({ kind: "derived", id: source, source })}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
                 <Button size="xs" variant="outline" onClick={() => setAddColumnOpen(true)}>
                   <Plus />Column
                 </Button>
@@ -567,8 +634,44 @@ export function MatrixEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceE
                       </button>
                     </th>
                     {columns.map((column) => (
-                      <th key={column.id} className="min-w-44 max-w-72 border-b border-r p-0 text-left font-medium">
+                      <th
+                        key={column.id}
+                        className={cn(
+                          "min-w-44 max-w-72 border-b border-r p-0 text-left font-medium",
+                          columnDropTarget?.id === column.id && (columnDropTarget.side === "before" ? "border-l-2 border-l-primary" : "border-r-2 border-r-primary"),
+                        )}
+                        onDragOver={(event) => {
+                          if (!draggedColumnId || draggedColumnId === column.id) return;
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                          const side = event.clientX < event.currentTarget.getBoundingClientRect().left + event.currentTarget.clientWidth / 2 ? "before" : "after";
+                          if (columnDropTarget?.id !== column.id || columnDropTarget.side !== side) {
+                            setColumnDropTarget({ id: column.id, side });
+                          }
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const side = event.clientX < event.currentTarget.getBoundingClientRect().left + event.currentTarget.clientWidth / 2 ? "before" : "after";
+                          dropColumn(column.id, side);
+                        }}
+                      >
                         <div className="flex items-center">
+                          {!readOnly ? (
+                            <button
+                              type="button"
+                              draggable
+                              className="flex size-5 shrink-0 cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                              aria-label={`Drag to reorder ${matrixColumnLabel(column)} column`}
+                              onDragStart={(event) => {
+                                event.dataTransfer.effectAllowed = "move";
+                                event.dataTransfer.setData("text/plain", column.id);
+                                setDraggedColumnId(column.id);
+                              }}
+                              onDragEnd={() => { setDraggedColumnId(undefined); setColumnDropTarget(undefined); }}
+                            >
+                              <GripVertical className="size-3.5" />
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             className="flex min-w-0 flex-1 items-center gap-1 px-2 py-2 hover:text-foreground"
@@ -618,7 +721,29 @@ export function MatrixEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceE
                       columns={columns}
                       readOnly={readOnly}
                       showUnlinked={citationsReady}
-                      onRemove={() => removeRow(row.citationKey)}
+                      onRemove={() => setRemoveRowTarget({ citationKey: row.citationKey, title: row.title })}
+                      dragging={draggedRowKey === row.citationKey}
+                      dropSide={rowDropTarget?.key === row.citationKey ? rowDropTarget.side : undefined}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", row.citationKey);
+                        setDraggedRowKey(row.citationKey);
+                      }}
+                      onDragOver={(event) => {
+                        if (!draggedRowKey || draggedRowKey === row.citationKey) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        const side = event.clientY < event.currentTarget.getBoundingClientRect().top + event.currentTarget.clientHeight / 2 ? "before" : "after";
+                        if (rowDropTarget?.key !== row.citationKey || rowDropTarget.side !== side) {
+                          setRowDropTarget({ key: row.citationKey, side });
+                        }
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const side = event.clientY < event.currentTarget.getBoundingClientRect().top + event.currentTarget.clientHeight / 2 ? "before" : "after";
+                        dropRow(row.citationKey, side);
+                      }}
+                      onDragEnd={() => { setDraggedRowKey(undefined); setRowDropTarget(undefined); }}
                       onSetCell={(columnId, value) => setCell(row.citationKey, columnId, value)}
                       onOpen={() => openReference(row)}
                     />
@@ -656,7 +781,7 @@ export function MatrixEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceE
         initialLabel={renameColumn?.label}
         initialDescription={renameColumn?.description}
         onCancel={() => setRenameColumn(undefined)}
-        onSubmit={() => confirmRenameColumn()}
+        onSubmit={confirmRenameColumn}
       />
       <AddStudiesDialog
         open={addStudiesOpen}
@@ -685,6 +810,25 @@ export function MatrixEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceE
             >
               {text.saving ? <Loader2 className="animate-spin" /> : deleteColumn?.kind === "derived" ? null : <Trash2 />}
               {deleteColumn?.kind === "derived" ? "Hide Column" : "Delete Column"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={removeRowTarget !== undefined} onOpenChange={(open) => { if (!open) setRemoveRowTarget(undefined); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this study?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-medium text-foreground">{removeRowTarget?.title}</span> and its matrix cell values will be removed from this matrix. The citation will remain in the project bibliography.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={(event) => { event.preventDefault(); if (removeRowTarget) removeRow(removeRowTarget.citationKey); }}
+            >
+              <Trash2 />Remove Study
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -736,7 +880,7 @@ function ColumnMenu({
             <PencilSparkles />Fill with AI
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuSeparator />
+        {onRename || onFill ? <DropdownMenuSeparator /> : null}
         <DropdownMenuItem variant="destructive" onClick={onHide}>
           <Trash2 />{column.kind === "derived" ? "Hide Column" : "Delete Column"}
         </DropdownMenuItem>
@@ -995,6 +1139,12 @@ function MatrixRowView({
   readOnly,
   showUnlinked,
   onRemove,
+  dragging,
+  dropSide,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
   onSetCell,
   onOpen,
 }: {
@@ -1003,28 +1153,52 @@ function MatrixRowView({
   readOnly: boolean;
   showUnlinked: boolean;
   onRemove: () => void;
+  dragging: boolean;
+  dropSide?: "before" | "after";
+  onDragStart: React.DragEventHandler<HTMLButtonElement>;
+  onDragOver: React.DragEventHandler<HTMLTableRowElement>;
+  onDrop: React.DragEventHandler<HTMLTableRowElement>;
+  onDragEnd: React.DragEventHandler<HTMLButtonElement>;
   onSetCell: (columnId: string, value: string) => void;
   onOpen: () => void;
 }) {
   return (
     <tr
-      className="group/row cursor-pointer hover:bg-muted/30"
+      className={cn("group/row cursor-pointer hover:bg-muted/30", dragging && "opacity-50")}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       onClick={(event) => {
         if ((event.target as HTMLElement).closest("button, a, input, textarea, select, [role=button]")) return;
         onOpen();
       }}
     >
-      <th className="sticky left-0 z-10 min-w-56 max-w-72 border-b border-r bg-card px-2 py-0 text-left align-top font-normal group-hover/row:bg-muted/80">
+      <th className={cn(
+        "sticky left-0 z-10 min-w-56 max-w-72 border-b border-r bg-card px-2 py-0 text-left align-top font-normal group-hover/row:bg-muted/80",
+        dropSide === "before" && "border-t-2 border-t-primary",
+        dropSide === "after" && "border-b-2 border-b-primary",
+      )}>
         <div className="flex items-start gap-1 py-2 pr-1">
           {!readOnly ? (
-            <button
-              type="button"
-              className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-100"
-              aria-label={`Remove ${row.title} from the matrix`}
-              onClick={onRemove}
-            >
-              <X className="size-3.5" />
-            </button>
+            <div className="flex shrink-0 flex-col items-center">
+              <button
+                type="button"
+                draggable
+                className="flex size-5 cursor-grab items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+                aria-label={`Drag to reorder ${row.title}`}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+              >
+                <GripVertical className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                className="flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-100"
+                aria-label={`Remove ${row.title} from the matrix`}
+                onClick={onRemove}
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
           ) : null}
           <div className="min-w-0 flex-1">
             <button

@@ -35,6 +35,11 @@ import {
   type ChatSelectionContext,
 } from "@/lib/chat-context";
 import { rememberWorkspaceEntries } from "@/lib/workspace-entry-index";
+import {
+  applyMutationToFlatListing,
+  WORKSPACE_MUTATION_EVENT,
+  type WorkspaceMutation,
+} from "@/lib/workspace-mutations";
 import { resizeImageForAgent } from "@/lib/client-image-resize";
 import { SYSTEM_SKILL_SUMMARIES } from "@/lib/skill-markdown";
 type SuggestedPrompt = { label: string; prompt: string };
@@ -562,6 +567,7 @@ function AgentChatInner({
   // message into view even when the user had scrolled up (see AgentMessageList).
   const [sendScrollSignal, setSendScrollSignal] = useState(0);
   const [workspaceFiles, setWorkspaceFiles] = useState<FileEntry[]>(() => workspace.initialFiles ?? []);
+  const workspaceMutationRevision = useRef(0);
   const [availableSkills, setAvailableSkills] = useState<SkillSummary[]>([]);
   const [mentionQuery, setMentionQuery] = useState<string>();
   const [skillQuery, setSkillQuery] = useState<string>();
@@ -634,8 +640,10 @@ function AgentChatInner({
 
   const refreshWorkspaceFiles = useCallback(() => {
     if (!projectId) return;
+    const revision = workspaceMutationRevision.current;
     void listAllFiles(projectId)
       .then((entries) => {
+        if (revision !== workspaceMutationRevision.current) return;
         // Mention chips parsed from assistant markdown have no kind info;
         // they read dir-ness from this index (see workspace-entry-index).
         rememberWorkspaceEntries(entries);
@@ -643,6 +651,20 @@ function AgentChatInner({
       })
       .catch(() => undefined);
   }, [projectId]);
+
+  useEffect(() => {
+    const handleMutation = (event: Event) => {
+      const mutation = (event as CustomEvent<WorkspaceMutation>).detail;
+      workspaceMutationRevision.current += 1;
+      setWorkspaceFiles((current) => applyMutationToFlatListing(current, mutation));
+    };
+    window.addEventListener(WORKSPACE_MUTATION_EVENT, handleMutation);
+    return () => window.removeEventListener(WORKSPACE_MUTATION_EVENT, handleMutation);
+  }, []);
+
+  useEffect(() => {
+    rememberWorkspaceEntries(workspaceFiles);
+  }, [workspaceFiles]);
 
   useEffect(() => {
     if (workspace.initialFiles) rememberWorkspaceEntries(workspace.initialFiles);

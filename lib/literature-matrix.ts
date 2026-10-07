@@ -347,9 +347,14 @@ export function removeMatrixColumn(
   matrix: LiteratureMatrix,
   columnId: string,
 ): { matrix: LiteratureMatrix } {
+  const removedColumn = matrix.columns.find((column) => column.id === columnId);
   const columns = matrix.columns.filter((column) => column.id !== columnId);
   if (columns.length === matrix.columns.length) {
     throw new Error(`Column "${columnId}" does not exist.`);
+  }
+  // Hiding a bibliography field should preserve edits if it is shown again.
+  if (removedColumn?.kind === "derived") {
+    return { matrix: { ...matrix, columns } };
   }
   const rows = matrix.rows.map((row) => {
     if (!(columnId in row.cells)) return row;
