@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { appRoot } from "../../lib/app-paths";
+
 const HOST_SKILL_ENTRYPOINTS: Readonly<Record<string, string>> = {
   "bibliometric-analysis": "bibliometric-analysis.md",
   "data-cleaning-heuristics": "data-cleaning-heuristics.md",
@@ -29,18 +31,13 @@ export async function readHostSkill(skill: string): Promise<string | null> {
   const relativePath = HOST_SKILL_ENTRYPOINTS[skill];
   if (!relativePath) return null;
   // In `eve dev`, authored modules execute from a generated module-map, so
-  // import.meta.url points into .eve/dev-hosts rather than agent/lib. The Eve
-  // app root remains process.cwd(), making this stable across hot reloads.
+  // import.meta.url points into .eve/dev-hosts rather than agent/lib. The app
+  // root (the checkout, or the desktop app's resources) is stable instead.
+  const root = appRoot();
   const candidates = [
-    path.resolve(process.cwd(), "agent", "skills", relativePath),
-    path.resolve(
-      process.cwd(),
-      ".eve", "compile", "workspace-resources", "__root__", "skills", skill, "SKILL.md",
-    ),
-    path.resolve(
-      process.cwd(),
-      ".output", ".eve", "compile", "workspace-resources", "__root__", "skills", skill, "SKILL.md",
-    ),
+    path.resolve(root, "agent", "skills", relativePath),
+    path.resolve(root, ".eve", "compile", "workspace-resources", "__root__", "skills", skill, "SKILL.md"),
+    path.resolve(root, ".output", ".eve", "compile", "workspace-resources", "__root__", "skills", skill, "SKILL.md"),
   ];
   let lastError: unknown;
   for (const candidate of candidates) {

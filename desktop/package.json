@@ -1,0 +1,36 @@
+{
+  "name": "beeblio-desktop",
+  "productName": "Beeblio",
+  "version": "1.0.0",
+  "description": "Desktop app for the local Beeblio workspace",
+  "private": true,
+  "license": "SEE LICENSE IN ../LICENSE.md",
+  "packageManager": "pnpm@11.17.0",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "pnpm build && electron .",
+    "dev": "pnpm build && electron . --dev",
+    "dist": "pnpm run typecheck && pnpm run build && pnpm run bundle && electron-builder --config electron-builder.config.cjs --publish never",
+    "bundle": "node scripts/stage.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.x",
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "electron-updater": "6.8.10",
+    "esbuild": "0.28.2",
+    "typescript": "6.0.3"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "author": "Beeblio contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alharkan7/beeblio-oss.git",
+    "directory": "desktop"
+  }
+}

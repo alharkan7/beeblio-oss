@@ -2,9 +2,11 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { dataDir } from "./app-paths";
+
 /** Shared only by the two local server processes; never exposed to the browser. */
 export function localAgentSecret(): string {
-  const file = path.resolve(process.cwd(), ".beeblio/agent-secret");
+  const file = path.join(dataDir(), "agent-secret");
   mkdirSync(path.dirname(file), { recursive: true });
   try {
     writeFileSync(file, randomBytes(32).toString("hex"), { flag: "wx", mode: 0o600 });

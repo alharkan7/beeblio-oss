@@ -9,6 +9,7 @@ import { EditorError, EditorLoading } from "./editor-states";
 import { SourceCodeEditor } from "./source-code-editor";
 import type { WorkspaceEditorProps } from "./types";
 import { useTextFile } from "./use-text-file";
+import { errorDetail } from "@/lib/error-detail";
 
 type JsonMode = "tree" | "source" | "split";
 
@@ -19,7 +20,7 @@ export function JsonEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceEdi
     try {
       return { value: JSON.parse(text.draft) as unknown, error: undefined };
     } catch (error) {
-      return { value: undefined, error: error instanceof Error ? error.message : "Invalid JSON" };
+      return { value: undefined, error: errorDetail(error, "Invalid JSON") };
     }
   }, [text.draft]);
   const itemCount = parsed.value && typeof parsed.value === "object" ? Object.keys(parsed.value).length : 1;

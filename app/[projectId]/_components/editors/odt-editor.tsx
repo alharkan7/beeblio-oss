@@ -10,6 +10,7 @@ import { EditorShell } from "./editor-shell";
 import { EditorError, EditorLoading } from "./editor-states";
 import { OfficePdfPreview } from "./office-pdf-preview";
 import type { WorkspaceEditorProps } from "./types";
+import { errorDetail } from "@/lib/error-detail";
 
 export function OdtEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceEditorProps) {
   const [archive, setArchive] = useState<JSZip>();
@@ -32,7 +33,7 @@ export function OdtEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceEdit
         if (!xml) throw new Error("The OpenDocument content is missing.");
         const values = odtParagraphs(xml);
         if (!cancelled) { setArchive(zip); setParagraphs(values); setOriginal(values); }
-      } catch (cause) { if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to open ODT."); }
+      } catch (cause) { if (!cancelled) setError(errorDetail(cause, "Unable to open ODT.")); }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };

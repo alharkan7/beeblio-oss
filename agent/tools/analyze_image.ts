@@ -4,6 +4,7 @@ import { defineTool } from "eve/tools";
 import { z } from "zod";
 import { readWorkspaceFile } from "../workspace-files";
 import { timedModelFetch } from "../lib/model-timeout";
+import { appSetting, openRouterApiKey } from "../../lib/app-settings";
 import {
   resolveAuthenticatedWorkspace,
   toWorkspaceRelativePath,
@@ -69,7 +70,7 @@ export default defineTool({
     }
 
     const modelId =
-      process.env.OPENROUTER_VISION_MODEL_ID ?? process.env.OPENROUTER_MODEL_ID;
+      appSetting("OPENROUTER_VISION_MODEL_ID") ?? appSetting("OPENROUTER_MODEL_ID");
     if (!modelId) {
       throw new Error(
         "Set OPENROUTER_VISION_MODEL_ID (or OPENROUTER_MODEL_ID) to a vision-capable model.",
@@ -77,7 +78,7 @@ export default defineTool({
     }
 
     const openrouter = createOpenRouter({
-      apiKey: process.env.OPENROUTER_API_KEY,
+      apiKey: openRouterApiKey(),
       fetch: timedModelFetch(),
     });
     const result = await generateText({

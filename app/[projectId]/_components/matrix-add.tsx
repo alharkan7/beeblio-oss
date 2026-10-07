@@ -28,6 +28,7 @@ import {
 } from "../matrix-actions";
 import { useMatrixTargets } from "./matrix-targets-context";
 import { matrixPathsForRequest, rememberMatrixCommit } from "./matrix-membership-cache";
+import { errorDetail } from "@/lib/error-detail";
 
 export type MatrixAddRequest =
   | { kind: "literature"; items: LiteratureItem[] }
@@ -115,7 +116,7 @@ export function useMatrixAdd(
     } catch (error) {
       toast.error("Could not add to the matrix", {
         id: loadingToast,
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setSaving(false);
@@ -220,7 +221,7 @@ export function MatrixTargetDialog({
       onPick(result.matrixPath);
     } catch (error) {
       toast.error("Could not create the matrix", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setCreating(false);

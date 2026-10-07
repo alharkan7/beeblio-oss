@@ -11,6 +11,7 @@ import {
   type LiteratureMapSource,
 } from "@/lib/literature-map";
 import { enrichLiteratureMap } from "../../../literature-map-actions";
+import { errorDetail } from "@/lib/error-detail";
 
 const WIDTH = 1_200;
 const HEIGHT = 760;
@@ -63,7 +64,7 @@ export function LiteratureMap({
       setCitationEdges(result.citationEdges);
       setEnrichment(result);
     } catch (error) {
-      setEnrichment({ resolvedCount: 0, eligibleCount: 0, remainingCount: 0, failedCount: 0, error: error instanceof Error ? error.message : "Citation enrichment failed." });
+      setEnrichment({ resolvedCount: 0, eligibleCount: 0, remainingCount: 0, failedCount: 0, error: errorDetail(error, "Citation enrichment failed.") });
     } finally { setEnriching(false); }
   };
 

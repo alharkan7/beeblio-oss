@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { CompletionSettings, DocumentDefaultSettings } from "@/lib/project-settings";
 import { downloadMarkdownDocument, type MarkdownDownloadFormat } from "./markdown-document-converter";
 import { MarkdownTiptapEditor } from "./tiptap-document-editor";
+import { errorDetail } from "@/lib/error-detail";
 
 export function MarkdownDownloadMenu({
   projectId,
@@ -34,7 +35,7 @@ export function MarkdownDownloadMenu({
     try {
       await downloadMarkdownDocument({ format, filename, markdown, projectId, filePath });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to download document");
+      toast.error(errorDetail(error, "Unable to download document"));
     } finally {
       setDownloading(null);
     }

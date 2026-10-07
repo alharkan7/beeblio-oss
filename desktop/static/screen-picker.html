@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- No scripts at all: the picker's preload renders the list (src/picker-preload.cts). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
+  <title>Choose what to share</title>
+  <style>
+    :root { color-scheme: light dark; --background: #f9f7f1; --surface: #ffffff; --text: #1d2733; --muted: #5f6b78; --border: #dcd7cc; --accent: #174b72; }
+    @media (prefers-color-scheme: dark) { :root { --background: #0b1015; --surface: #121a22; --text: #e6ebf0; --muted: #9aa4b1; --border: #26313d; --accent: #8fcae0; } }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; flex-direction: column; background: var(--background); color: var(--text); font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    header { padding: 18px 20px 6px; }
+    h1 { margin: 0; font-size: 15px; font-weight: 600; }
+    header p { margin: 4px 0 0; color: var(--muted); }
+    #sources { flex: 1; overflow-y: auto; padding: 8px 20px 16px; }
+    h2 { margin: 14px 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .tile { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+    .tile:hover, .tile:focus-visible { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+    .tile img { width: 100%; aspect-ratio: 16 / 10; object-fit: contain; border-radius: 6px; background: var(--background); }
+    .tile span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    footer { display: flex; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--border); }
+    footer button { padding: 6px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Choose what to share</h1>
+    <p>Beeblio takes a single screenshot of the screen or window you pick.</p>
+  </header>
+  <main id="sources" aria-live="polite">Loading…</main>
+  <footer><button type="button" id="cancel">Cancel</button></footer>
+</body>
+</html>

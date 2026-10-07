@@ -1,0 +1,14 @@
+#!/bin/sh
+# Windows installs Python as python.exe or the py launcher, never python3,
+# and a python3 that exists is usually the Microsoft Store placeholder,
+# which only opens the Store. The agent's commands and skills call python3,
+# so on Windows this shim (first on the agent's PATH, see
+# lib/agent-environment.ts) forwards to a real interpreter.
+real() {
+  found=$(command -v "$1" 2>/dev/null) || return 1
+  case "$found" in *WindowsApps*) return 1 ;; esac
+}
+if real python; then exec python "$@"; fi
+if real py; then exec py -3 "$@"; fi
+echo "python3: Python is not installed. Install it from https://www.python.org/downloads/ and select \"Add python.exe to PATH\"." >&2
+exit 127

@@ -1,0 +1,141 @@
+# Builds the desktop installers. Pushing a tag such as v0.1.0 also creates a
+# draft GitHub Release with them; a manual run or a pull request that touches
+# packaging only uploads them as workflow artifacts, so packaging breaks are
+# caught before a release. Each platform builds on its own runner because the
+# bundled Node.js binary and native modules (better-sqlite3, sharp) are
+# platform-specific.
+name: Desktop release
+
+on:
+  push:
+    tags: ["v*"]
+    # Work branches too, so installers are known to build before a pull request
+    # exists. The installers package the whole app and the job runs its tests,
+    # so only documentation changes are skipped. Path filters are not applied
+    # to tag pushes, so tags always build.
+    branches: ["**"]
+    paths-ignore: ["**/*.md", "LICENSE.md"]
+  pull_request:
+    paths-ignore: ["**/*.md", "LICENSE.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  # A newer push replaces a branch build that is still running; release (tag) builds are never cancelled.
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    # A build takes about 10 minutes; anything longer is a hang, which would otherwise run for 6 hours.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS (Apple Silicon), runner: macos-15 }
+          - { name: Windows, runner: windows-latest }
+    env:
+      # next.config.ts: build the UI as a self-contained server.
+      BEEBLIO_STANDALONE: "1"
+      # Flat node_modules: pnpm's links do not survive packaging (see
+      # desktop/scripts/stage.mjs). Set for the job, not as an install flag:
+      # pnpm checks dependencies before each script and would otherwise
+      # reinstall them in the linked layout before the build.
+      pnpm_config_node_linker: hoisted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            desktop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm build:eve
+      - run: pnpm install --frozen-lockfile
+        working-directory: desktop
+      - name: Build the installer
+        working-directory: desktop
+        # Git Bash on Windows.
+        shell: bash
+        # An expression cannot leave a variable out, so a missing secret arrives
+        # as an empty string, and electron-builder reads an empty CSC_LINK as a
+        # certificate path (the working directory). Missing must mean unset.
+        run: |
+          for name in CSC_LINK CSC_KEY_PASSWORD WIN_CSC_LINK WIN_CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!name}" ] || unset "$name"
+          done
+          pnpm dist
+        env:
+          # All optional. Without them the macOS build is ad-hoc signed and
+          # the Windows installer is unsigned; see the README's "Signing".
+          # Each certificate goes only to its own OS: on Windows, electron-builder
+          # falls back from WIN_CSC_LINK to CSC_LINK.
+          CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CERTIFICATE || '' }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CERTIFICATE_PASSWORD || '' }}
+          WIN_CSC_LINK: ${{ runner.os == 'Windows' && secrets.WINDOWS_CERTIFICATE || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ runner.os == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Stops electron-builder looking for a certificate in the keychain when none was given.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # Where installed apps look for updates; see docs/desktop-updates.md.
+          BEEBLIO_RELEASE_REPO: ${{ vars.BEEBLIO_RELEASE_REPO || github.repository }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: beeblio-${{ runner.os }}-${{ runner.arch }}
+          # The installers, plus what the app's updater reads: latest*.yml names
+          # the newest version, the zip is what macOS updates from, and the
+          # blockmaps let an update download only what changed.
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+            desktop/release/latest*.yml
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      # A tag that disagrees with the app's version would ship installers named for another version.
+      - name: Check the tag matches desktop/package.json
+        run: |
+          version="$(node -p "require('./desktop/package.json').version")"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match desktop/package.json version $version"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A draft reaches no one: installed apps only see published releases, so
+        # publishing it is the moment users are offered the update. A tag such
+        # as v0.2.0-beta.1 becomes a prerelease, which the apps never offer.
+        run: |
+          channel=()
+          [[ "$GITHUB_REF_NAME" == *-* ]] && channel=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" installers/* --draft "${channel[@]}" --verify-tag --generate-notes --title "Beeblio ${GITHUB_REF_NAME#v}"

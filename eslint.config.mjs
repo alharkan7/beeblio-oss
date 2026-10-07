@@ -30,6 +30,7 @@ export default defineConfig([
     ".eve/**",
     ".output/**",
     ".beeblio/**",
+    "desktop/dist/**",
     "next-env.d.ts",
   ]),
 ]);

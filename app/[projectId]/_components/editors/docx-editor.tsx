@@ -10,6 +10,7 @@ import { EditorShell } from "./editor-shell";
 import { EditorError, EditorLoading } from "./editor-states";
 import { OfficePdfPreview } from "./office-pdf-preview";
 import type { WorkspaceEditorProps } from "./types";
+import { errorDetail } from "@/lib/error-detail";
 
 export function DocxEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceEditorProps) {
   const [archive, setArchive] = useState<JSZip>();
@@ -35,7 +36,7 @@ export function DocxEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceEdi
         const values = docxParagraphs(xml);
         if (cancelled) return;
         setArchive(zip); setParagraphs(values); setOriginal(values);
-      } catch (cause) { if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to open DOCX."); }
+      } catch (cause) { if (!cancelled) setError(errorDetail(cause, "Unable to open DOCX.")); }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };

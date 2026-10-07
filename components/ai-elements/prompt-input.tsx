@@ -82,7 +82,8 @@ const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
   }
 };
 
-const captureScreenshot = async (): Promise<File | null> => {
+/** One frame of a screen or window the person picks, as a PNG; throws a DOMException (NotAllowedError, or AbortError in Electron) when they cancel. */
+export const captureScreenshot = async (): Promise<File | null> => {
   if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
     return null;
   }

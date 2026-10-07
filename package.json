@@ -17,9 +17,12 @@
   "scripts": {
     "build": "next build",
     "dev": "node scripts/local-dev.mjs",
+    "desktop": "pnpm --dir desktop start",
+    "desktop:dev": "pnpm --dir desktop dev",
     "start": "next start",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "tsc --noEmit --incremental false --noUnusedLocals --noUnusedParameters -p tsconfig.json",
+    "test": "node --import ./tests/resolve-ts.mjs --test --test-timeout=120000 \"tests/**/*.test.*\"",
     "build:eve": "eve build",
     "dev:eve": "eve dev",
     "start:eve": "eve start",

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { listUserProjects } from "../../share-actions";
 import { copyPublicFile } from "../../public-share-actions";
+import { errorDetail } from "@/lib/error-detail";
 
 const NEW_WORKSPACE_VALUE = "__new__";
 
@@ -61,7 +62,7 @@ export function CopyToWorkspaceButton({ shareId }: { shareId: string }) {
       setProjects(previous => [{ slug: result.slug, name }, ...previous]);
       setSelectedSlug(result.slug);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create project");
+      toast.error(errorDetail(error, "Failed to create project"));
     } finally {
       setIsCreating(false);
     }

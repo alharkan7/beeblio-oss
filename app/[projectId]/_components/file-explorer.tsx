@@ -102,6 +102,7 @@ import { prefetchTextFile } from "./editors/text-content-cache";
 import { isPendingUpload, usePendingUploads } from "./use-pending-uploads";
 import { WorkspaceFileActions } from "./workspace-file-actions";
 import { announceFormCreated, createFormInFormsFolder, FORMS_DIRECTORY } from "./form-creation";
+import { errorDetail } from "@/lib/error-detail";
 
 // The chat (agent-chat.tsx) dispatches this when an agent turn completes, so the
 // panel re-lists and picks up any file changes the agent made.
@@ -500,7 +501,7 @@ export function FileExplorer({
       await refreshFiles();
     } catch (error) {
       toast.error("Failed to create folder", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     }
   };
@@ -519,7 +520,7 @@ export function FileExplorer({
       onOpenFile(file, true);
     } catch (error) {
       toast.error("Failed to create form", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setNewFormPending(false);
@@ -577,7 +578,7 @@ export function FileExplorer({
       return true;
     } catch (error) {
       toast.error("Failed to move item", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
       return false;
     } finally {
@@ -677,7 +678,7 @@ export function FileExplorer({
       exitMultiSelectMode();
     } catch (error) {
       toast.error("Failed to download selection", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setIsDownloadingSelection(false);
@@ -703,7 +704,7 @@ export function FileExplorer({
       await refreshFiles(undefined, false);
     } catch (error) {
       toast.error(items.length === 1 ? "Failed to duplicate file" : "Failed to duplicate files", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setIsDuplicatingSelection(false);
@@ -741,7 +742,7 @@ export function FileExplorer({
       await refreshFiles(undefined, false);
     } catch (error) {
       toast.error("Failed to delete selected items", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setDeleteSelectionPending(false);

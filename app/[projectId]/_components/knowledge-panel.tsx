@@ -18,6 +18,7 @@ import { getWorkspaceDragPaths } from "@/lib/workspace-drag";
 import { uploadWorkspaceFile } from "@/lib/workspace-upload";
 import { addFileToKnowledge, listKnowledgeDocuments, removeFileFromKnowledge } from "../knowledge-actions";
 import { listAllFiles, type FileEntry } from "../file-actions";
+import { errorDetail } from "@/lib/error-detail";
 
 type KnowledgePanelSnapshot = {
   documents: KnowledgeDocumentDTO[];
@@ -73,7 +74,9 @@ export function KnowledgePanel({ projectId, initialDocuments, initialFiles, onOp
       setDocuments(nextDocuments);
       setFiles(entries);
     } catch (error) {
-      toast.error("Could not load Knowledge", { description: error instanceof Error ? error.message : undefined });
+      // A fixed id, because this runs on a timer while files index: a failing
+      // agent should update one toast, not stack a new one every few seconds.
+      toast.error("Could not load Knowledge", { id: "knowledge-load-failed", description: errorDetail(error) });
     } finally {
       setLoading(false);
     }
@@ -164,7 +167,7 @@ export function KnowledgePanel({ projectId, initialDocuments, initialFiles, onOp
     } catch (error) {
       if (requestId !== searchRequestRef.current) return;
       if (!abortController.signal.aborted) {
-        setSearchError(error instanceof Error ? error.message : "Knowledge search failed.");
+        setSearchError(errorDetail(error, "Knowledge search failed."));
         setSearchResult((current) => current?.answer ? current : null);
       }
     } finally {
@@ -193,7 +196,7 @@ export function KnowledgePanel({ projectId, initialDocuments, initialFiles, onOp
         toast.success("Added to Knowledge", { description: `${result.document.displayName} is processing in the background.` });
       }
     } catch (error) {
-      toast.error("Could not add to Knowledge", { description: error instanceof Error ? error.message : undefined });
+      toast.error("Could not add to Knowledge", { description: errorDetail(error) });
     } finally {
       setBusyPaths((current) => { const next = new Set(current); next.delete(filePath); return next; });
     }
@@ -212,7 +215,7 @@ export function KnowledgePanel({ projectId, initialDocuments, initialFiles, onOp
       toast.success("File removed from Knowledge");
       window.dispatchEvent(new CustomEvent("beeblio:knowledge-changed"));
     } catch (error) {
-      toast.error("Could not remove from Knowledge", { description: error instanceof Error ? error.message : undefined });
+      toast.error("Could not remove from Knowledge", { description: errorDetail(error) });
     } finally {
       setBusyPaths((current) => { const next = new Set(current); next.delete(document.filePath); return next; });
     }

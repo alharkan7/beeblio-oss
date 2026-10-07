@@ -11,6 +11,7 @@ import { EditorShell } from "./editor-shell";
 import { EditorError, EditorLoading } from "./editor-states";
 import type { WorkspaceEditorProps } from "./types";
 import { useTextFile } from "./use-text-file";
+import { errorDetail } from "@/lib/error-detail";
 
 type NotebookCell = { id?: string; cell_type: "markdown" | "code" | "raw"; source: string | string[]; outputs?: Array<Record<string, unknown>>; execution_count?: number | null; metadata?: Record<string, unknown> };
 type Notebook = { cells: NotebookCell[]; metadata: Record<string, unknown>; nbformat: number; nbformat_minor: number };
@@ -24,7 +25,7 @@ export function NotebookEditor({ projectId, file, sourceUrl, onSaved }: Workspac
       const value = JSON.parse(text.draft) as Notebook;
       return Array.isArray(value.cells) ? { value } : { error: "Notebook has no cells array." };
     } catch (error) {
-      return { error: error instanceof Error ? error.message : "Invalid notebook JSON" };
+      return { error: errorDetail(error, "Invalid notebook JSON") };
     }
   }, [text.draft]);
 

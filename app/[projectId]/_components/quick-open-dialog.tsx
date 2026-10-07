@@ -25,6 +25,7 @@ import {
 import { announceWorkspaceChange } from "@/lib/workspace-change";
 import { getFileContent, listAllFiles, type FileEntry } from "../file-actions";
 import { saveLiteratureCitation, searchLiterature } from "../literature-actions";
+import { errorDetail } from "@/lib/error-detail";
 
 const FILE_RESULT_LIMIT = 100;
 const LIBRARY_RESULT_LIMIT = 8;
@@ -201,7 +202,7 @@ export function QuickOpenDialog({
         results: [],
         searching: false,
         searchedQuery: searchQuery,
-        error: error instanceof Error ? error.message : "Literature search failed.",
+        error: errorDetail(error, "Literature search failed."),
       });
     }
   };
@@ -250,7 +251,7 @@ export function QuickOpenDialog({
       });
     } catch (error) {
       toast.error("Could not save the citation", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
       setLiterature((current) => ({ ...current, savingId: undefined }));
     }

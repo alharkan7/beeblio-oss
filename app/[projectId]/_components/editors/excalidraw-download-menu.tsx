@@ -14,6 +14,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { parseExcalidrawScene } from "./excalidraw-scene";
 import type { NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { errorDetail } from "@/lib/error-detail";
 
 type DownloadFormat = "excalidraw" | "png" | "jpg";
 
@@ -56,7 +57,7 @@ export function ExcalidrawDownloadMenu({ filename, sceneJson }: { filename: stri
       });
       downloadBlob(blob, `${stem}.${format}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to export the drawing");
+      toast.error(errorDetail(error, "Unable to export the drawing"));
     } finally {
       setDownloading(null);
     }

@@ -25,7 +25,7 @@ export async function addFileToKnowledge(projectId: string, filePath: string) {
     if (error instanceof Error && /API_KEY_INVALID|API key not valid/i.test(error.message)) {
       return {
         kind: "configuration_error" as const,
-        error: "Google rejected GOOGLE_API_KEY. Create a Gemini API key in Google AI Studio, update .env.local, and restart pnpm dev.",
+        error: "Google rejected the Gemini API key. Create one in Google AI Studio and save it in Settings → API Keys.",
       };
     }
     throw error;

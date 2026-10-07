@@ -1,14 +1,15 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText } from "ai";
 import { integerEnv } from "@/lib/env-config";
+import { appSetting, openRouterApiKey } from "@/lib/app-settings";
 
 const FALLBACK_TITLE = "New Conversation";
 const MAX_TITLE_LENGTH = integerEnv("TITLE_MAX_LENGTH", 80, 1);
 
 export async function generateConversationTitle(firstMessage: string | undefined) {
   const prompt = firstMessage?.trim();
-  const modelId = process.env.OPENROUTER_MODEL_ID_LITE;
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const modelId = appSetting("OPENROUTER_MODEL_ID_LITE");
+  const apiKey = openRouterApiKey();
 
   if (!prompt || !modelId || !apiKey) {
     return FALLBACK_TITLE;

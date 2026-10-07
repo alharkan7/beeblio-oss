@@ -14,7 +14,7 @@ export default function WorkspaceLoading() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-7 bg-background [background-image:radial-gradient(circle_at_12%_0%,oklch(0.91_0.035_235/0.45),transparent_27rem)] px-6">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-7 bg-background [background-image:radial-gradient(circle_at_12%_0%,oklch(0.91_0.035_235/0.45),transparent_27rem)] dark:[background-image:radial-gradient(circle_at_12%_0%,oklch(0.4_0.035_235/0.18),transparent_27rem)] px-6">
       <div className="flex flex-col items-center gap-2.5">
         <img src="/beeblio-mark.svg" alt="" className="size-9" />
         <span className="text-[1.15rem] font-semibold tracking-[-0.035em]">Beeblio</span>

@@ -40,6 +40,7 @@ import { fileUrl } from "./file-viewer";
 import { addFileToKnowledge } from "../knowledge-actions";
 import { acceptsKnowledgeFile } from "@/lib/knowledge-files";
 import { ShareFileControls } from "./editors/share-button";
+import { errorDetail } from "@/lib/error-detail";
 
 export function WorkspaceFileActions({
   projectId,
@@ -113,7 +114,7 @@ export function WorkspaceFileActions({
     } catch (error) {
       toast.error("Failed to download", {
         id: loading,
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setBusy(false);
@@ -155,7 +156,7 @@ export function WorkspaceFileActions({
       changed();
       setMoveOpen(false);
     } catch (error) {
-      setMoveError(error instanceof Error ? error.message : `Failed to move ${file.name}`);
+      setMoveError(errorDetail(error, `Failed to move ${file.name}`));
     } finally {
       setBusy(false);
     }
@@ -185,7 +186,7 @@ export function WorkspaceFileActions({
       changed();
       setRenameOpen(false);
     } catch (error) {
-      setRenameError(error instanceof Error ? error.message : `Failed to rename ${file.name}`);
+      setRenameError(errorDetail(error, `Failed to rename ${file.name}`));
     } finally {
       setBusy(false);
     }
@@ -207,7 +208,7 @@ export function WorkspaceFileActions({
     } catch (error) {
       toast.error("Failed to duplicate file", {
         id: loading,
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setBusy(false);
@@ -228,7 +229,7 @@ export function WorkspaceFileActions({
         window.dispatchEvent(new CustomEvent("beeblio:knowledge-changed"));
       }
     } catch (error) {
-      toast.error("Failed to add to Knowledge", { id: loading, description: error instanceof Error ? error.message : undefined });
+      toast.error("Failed to add to Knowledge", { id: loading, description: errorDetail(error) });
     } finally {
       setBusy(false);
     }
@@ -244,7 +245,7 @@ export function WorkspaceFileActions({
       setDeleteOpen(false);
     } catch (error) {
       toast.error(`Failed to delete ${file.name}`, {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setBusy(false);

@@ -65,6 +65,7 @@ import {
   MarkdownCodeBlock, MarkdownHeading, MarkdownParagraph, MarkdownSubscript, MarkdownSuperscript,
   MarkdownTextStyle, MentionSearchHighlight, documentSelectionAt, fileExtension, isVisualFile, workspaceImage,
 } from "./tiptap-markdown-extensions";
+import { errorDetail } from "@/lib/error-detail";
 
 const LITERATURE_MENTION_RESULT_LIMIT = 5;
 
@@ -350,7 +351,7 @@ export function MarkdownTiptapEditor({
       toast.success("Reference saved", { description: `Updated ${draft.key} in ${PROJECT_BIBLIOGRAPHY_PATH}.` });
       return true;
     } catch (error) {
-      toast.error("Could not save the reference", { description: error instanceof Error ? error.message : undefined });
+      toast.error("Could not save the reference", { description: errorDetail(error) });
       return false;
     } finally {
       setSavingReference(false);
@@ -501,7 +502,7 @@ export function MarkdownTiptapEditor({
       }).run();
     } catch (error) {
       toast.error(`Unable to insert ${entry.name}`, {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     }
   };
@@ -527,7 +528,7 @@ export function MarkdownTiptapEditor({
         results: [],
         searching: false,
         searchedQuery: query,
-        error: error instanceof Error ? error.message : "Literature search failed.",
+        error: errorDetail(error, "Literature search failed."),
       });
     }
   };
@@ -567,7 +568,7 @@ export function MarkdownTiptapEditor({
       announceWorkspaceChange([{ path: PROJECT_BIBLIOGRAPHY_PATH, content: result.bibliographyContent }]);
       toast.success(result.alreadyExisted ? "Citation already in your library" : "Citation saved to your library", { description: result.citationPath });
     } catch (error) {
-      toast.error("Could not insert the citation", { description: error instanceof Error ? error.message : undefined });
+      toast.error("Could not insert the citation", { description: errorDetail(error) });
       setLiteratureMention((state) => ({ ...state, citingId: undefined }));
     }
   };
@@ -689,7 +690,7 @@ export function MarkdownTiptapEditor({
         }).run();
       } catch (error) {
         toast.error(`Unable to insert ${path.split("/").at(-1) ?? "diagram"}`, {
-          description: error instanceof Error ? error.message : undefined,
+          description: errorDetail(error),
         });
       }
     }

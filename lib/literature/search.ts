@@ -6,6 +6,8 @@ import type {
   LiteratureSource,
   LiteratureSourceSelection,
 } from "./types";
+import { appSetting } from "@/lib/app-settings";
+import type { SettingName } from "@/lib/app-settings-registry";
 
 export type UnsignedLiteratureItem = Omit<LiteratureItem, "saveToken">;
 
@@ -34,8 +36,8 @@ class ProviderRequestError extends Error {
   }
 }
 
-function env(name: string) {
-  return process.env[name]?.trim() || undefined;
+function env(name: SettingName) {
+  return appSetting(name);
 }
 
 function addOptionalParameter(url: URL, name: string, value?: string) {

@@ -94,10 +94,10 @@ export function ShareFileControls({ projectId, filePath }: { projectId: string; 
               <span className="sr-only">Copy</span>
             </Button>
           </div>
-          {localLink ? <p className="text-xs text-amber-700 dark:text-amber-400">This localhost link only works on this computer. Set <code>PUBLIC_TUNNEL_ORIGIN</code> to share it with others.</p> : null}
+          {localLink ? <p className="text-xs text-amber-700 dark:text-amber-400">This localhost link only works on this computer. Set a public tunnel origin in Settings → Sharing to share it with others.</p> : null}
         </div>
       ) : null}
-      <p className="text-xs leading-5 text-muted-foreground">Public sharing requires a reachable HTTPS URL. Set <code>PUBLIC_TUNNEL_ORIGIN</code> in <code>.env.local</code> when using a tunnel.</p>
+      <p className="text-xs leading-5 text-muted-foreground">Public sharing requires a reachable HTTPS URL. When using a tunnel, set its address in Settings → Sharing.</p>
     </div>
   );
 }

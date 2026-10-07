@@ -17,6 +17,7 @@ import { CITATION_TOKEN_REGEX } from "@/lib/markdown-bibliography";
 import { isNearSentenceRepeat } from "@/lib/sentence-suggestion-repeat";
 import { saveLiteratureCitation } from "../../literature-actions";
 import { generateSentenceSuggestion, type SentenceSuggestionResult } from "../../sentence-suggestion-actions";
+import { errorDetail } from "@/lib/error-detail";
 
 export type SuggestionSegment =
   | { kind: "text"; text: string }
@@ -377,7 +378,7 @@ export function SentenceSuggestions({
       if (seq === requestSeqRef.current) {
         failedKeyRef.current = key;
         toast.error("Could not suggest a sentence", {
-          description: error instanceof Error ? error.message : "Try again after editing the document.",
+          description: errorDetail(error, "Try again after editing the document."),
         });
       }
     } finally {
@@ -491,7 +492,7 @@ export function SentenceSuggestions({
           );
         } catch (error) {
           toast.error("Could not save the suggested citation", {
-            description: error instanceof Error ? error.message : undefined,
+            description: errorDetail(error),
           });
         }
       })();
@@ -505,7 +506,7 @@ export function SentenceSuggestions({
           await saveEntries(pendingEntries.map(({ key, bibtex }) => ({ key, bibtex })));
         } catch (error) {
           toast.error("Could not add the cited reference to references.bib", {
-            description: error instanceof Error ? error.message : undefined,
+            description: errorDetail(error),
           });
         }
       })();

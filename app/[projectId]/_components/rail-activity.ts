@@ -61,3 +61,11 @@ export function rememberedRailActivity(value: string | undefined | null): Activi
 export function rememberRailActivity(projectId: string, activity: Activity) {
   document.cookie = `beeblio:${projectId}:rail-activity=${activity}; path=/${projectId}; max-age=31536000; samesite=lax`;
 }
+
+// The research views are introduced together, so they share one tour target
+// (see app/_components/onboarding/tour-steps.ts).
+const RESEARCH_OUTPUT_ACTIVITIES = new Set<Activity>(["data", "analysis", "reports", "figures"]);
+
+export function railTourTarget(activity: Activity): string {
+  return RESEARCH_OUTPUT_ACTIVITIES.has(activity) ? "rail-output" : `rail-${activity}`;
+}

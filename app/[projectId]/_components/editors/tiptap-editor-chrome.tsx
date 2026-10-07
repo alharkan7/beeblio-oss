@@ -39,6 +39,7 @@ import { workspacePathRelativeToDocument } from "./markdown-image-path";
 import {
   DIAGRAM_EXTENSIONS, IMAGE_EXTENSIONS, UPLOADABLE_VISUAL_ACCEPT, isDiagramFile, isUploadableVisualName, isVisualFile,
 } from "./tiptap-markdown-extensions";
+import { errorDetail } from "@/lib/error-detail";
 
 const fonts = [
   ["", "Default"],
@@ -529,7 +530,7 @@ export function EquationEditorDialog({
       if (payload.modelSource === "system") {
         }
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : "The AI could not generate an equation.");
+      setAiError(errorDetail(error, "The AI could not generate an equation."));
     } finally {
       setAiPending(false);
     }
@@ -776,7 +777,7 @@ export function ImagePickerDialog({
       } catch (error) {
         setInserting(false);
         toast.error(`Unable to read ${entry.name}`, {
-          description: error instanceof Error ? error.message : undefined,
+          description: errorDetail(error),
         });
       }
       return;
@@ -814,7 +815,7 @@ export function ImagePickerDialog({
       void insertEntry(result.file);
     } catch (error) {
       toast.error(`Could not upload ${file.name}`, {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setUploading(false);

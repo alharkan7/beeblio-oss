@@ -38,6 +38,7 @@ import { useTextFile } from "./use-text-file";
 import { BlockCard } from "./form-builder/block-card";
 import { BLOCK_TYPE_ICONS } from "./form-builder/block-type-icons";
 import { BARE_FIELD, FLAT_FIELD } from "./form-builder/styles";
+import { errorDetail } from "@/lib/error-detail";
 
 type ViewMode = "build" | "preview" | "source";
 
@@ -70,7 +71,7 @@ export function FormBuilderEditor({ projectId, file, sourceUrl, onSaved }: Works
     } catch (error) {
       setDefinition(null);
       setDefinitionError(
-        error instanceof Error ? error.message : "The embedded form definition is invalid.",
+        errorDetail(error, "The embedded form definition is invalid."),
       );
     }
   }, [text.content, text.loading]);
@@ -99,7 +100,7 @@ export function FormBuilderEditor({ projectId, file, sourceUrl, onSaved }: Works
       applyDefinition(parseFormDefinition(updater(definition)));
     } catch (error) {
       toast.error("That change is not valid yet", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     }
   };
@@ -110,7 +111,7 @@ export function FormBuilderEditor({ projectId, file, sourceUrl, onSaved }: Works
         applyDefinition(parseFormHtml(text.draft));
       } catch (error) {
         toast.error("Fix the form definition before switching to Build", {
-          description: error instanceof Error ? error.message : undefined,
+          description: errorDetail(error),
         });
         return;
       }
@@ -125,7 +126,7 @@ export function FormBuilderEditor({ projectId, file, sourceUrl, onSaved }: Works
     } catch (error) {
       setDefinition(null);
       setDefinitionError(
-        error instanceof Error ? error.message : "The embedded form definition is invalid.",
+        errorDetail(error, "The embedded form definition is invalid."),
       );
     }
   };
@@ -148,7 +149,7 @@ export function FormBuilderEditor({ projectId, file, sourceUrl, onSaved }: Works
       if (saved) setDefinition(normalized);
     } catch (error) {
       toast.error("The form has invalid content", {
-        description: error instanceof Error ? error.message : "Resolve the highlighted problems and try again.",
+        description: errorDetail(error, "Resolve the highlighted problems and try again."),
       });
     }
   };

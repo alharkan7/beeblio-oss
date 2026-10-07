@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Beeblio mark</title>
+  <desc id="desc">Three offset research sheets combine into the silhouette of a letter B.</desc>
+  <rect width="64" height="64" rx="17" fill="#174B72"/>
+  <path d="M16 17h19c8 0 13 3.9 13 10 0 3.3-1.7 5.8-4.7 7.2C47 35.7 49 38.5 49 42c0 6.5-5.4 10-14 10H16V17Z" fill="#8FCAE0" opacity=".55" transform="translate(4 -4)"/>
+  <path d="M16 17h19c8 0 13 3.9 13 10 0 3.3-1.7 5.8-4.7 7.2C47 35.7 49 38.5 49 42c0 6.5-5.4 10-14 10H16V17Z" fill="#E09036" opacity=".9" transform="translate(2 -2)"/>
+  <path d="M16 17h19c8 0 13 3.9 13 10 0 3.3-1.7 5.8-4.7 7.2C47 35.7 49 38.5 49 42c0 6.5-5.4 10-14 10H16V17Z" fill="#FCFAF6"/>
+  <path d="M25 24v21h9.2c3.7 0 5.8-1.5 5.8-4.3 0-2.7-2.1-4.2-5.8-4.2H29v-6h4.5c3.5 0 5.4-1.2 5.4-3.4 0-2.1-1.9-3.1-5.4-3.1H25Z" fill="#174B72"/>
+</svg>

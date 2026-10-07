@@ -2,6 +2,7 @@ import { defineTool } from "eve/tools";
 import { z } from "zod";
 import type { ToolContext } from "eve/tools";
 import { fetchWithTimeout, truncateText } from "../lib/tool-runtime";
+import { appSetting } from "../../lib/app-settings";
 
 export default defineTool({
   description:
@@ -11,7 +12,7 @@ export default defineTool({
     count: z.number().int().min(1).max(20).default(10),
   }),
   async execute({ query, count }, ctx: ToolContext) {
-    const apiKey = process.env.BRAVE_SEARCH_API_KEY?.trim();
+    const apiKey = appSetting("BRAVE_SEARCH_API_KEY");
     if (!apiKey) {
       throw new Error("Brave Search is not configured; use web_search instead");
     }

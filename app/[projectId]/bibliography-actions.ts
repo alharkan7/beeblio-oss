@@ -18,6 +18,7 @@ import {
   writeAgentWorkspaceFile,
 } from "@/lib/workspace-files";
 import { getOwnedProject } from "./actions";
+import { appSetting } from "@/lib/app-settings";
 
 const entrySchema = z.object({
   projectId: z.string().regex(/^[A-Za-z0-9_-]+$/),
@@ -234,8 +235,9 @@ async function crossrefLookup(doi: string | undefined, query: string) {
     ? new URL(`https://api.crossref.org/works/${encodeURIComponent(doi)}`)
     : new URL("https://api.crossref.org/works");
   if (!doi) { url.searchParams.set("query.bibliographic", query.slice(0, 1_000)); url.searchParams.set("rows", "1"); }
-  if (process.env.CROSSREF_MAILTO) url.searchParams.set("mailto", process.env.CROSSREF_MAILTO);
-  const response = await fetch(url, { headers: { accept: "application/json", "user-agent": `Beeblio/0.0${process.env.CROSSREF_MAILTO ? ` (mailto:${process.env.CROSSREF_MAILTO})` : ""}` }, signal: AbortSignal.timeout(15_000) });
+  const mailto = appSetting("CROSSREF_MAILTO");
+  if (mailto) url.searchParams.set("mailto", mailto);
+  const response = await fetch(url, { headers: { accept: "application/json", "user-agent": `Beeblio/0.0${mailto ? ` (mailto:${mailto})` : ""}` }, signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new Error(`Crossref returned HTTP ${response.status}.`);
   const body = await response.json() as { message?: CrossrefWork | { items?: CrossrefWork[] } };
   return doi ? body.message as CrossrefWork : (body.message as { items?: CrossrefWork[] })?.items?.[0];

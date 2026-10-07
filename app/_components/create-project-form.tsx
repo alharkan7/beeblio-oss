@@ -20,6 +20,11 @@ export function CreateProjectForm({ customTrigger }: { customTrigger?: React.Rea
   const [open, setOpen] = useState(false);
   const [folderPath, setFolderPath] = useState("");
   async function chooseFolder() {
+    if (window.beeblioDesktop) {
+      const selected = await window.beeblioDesktop.selectFolder();
+      if (selected) setFolderPath(selected);
+      return;
+    }
     const response = await fetch("/api/projects/select-folder", { method: "POST" });
     const result = await response.json();
     if (response.ok && typeof result.folderPath === "string") setFolderPath(result.folderPath);

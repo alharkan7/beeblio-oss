@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { errorDetail } from "@/lib/error-detail";
 
 export function useWorkspaceDownload(sourceUrl: string | undefined, filePath: string) {
   const [downloading, setDownloading] = useState(false);
@@ -21,7 +22,7 @@ export function useWorkspaceDownload(sourceUrl: string | undefined, filePath: st
       link.remove();
     } catch (error) {
       toast.error("Failed to download", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setDownloading(false);

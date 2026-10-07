@@ -18,6 +18,7 @@ export default async function ProjectsDashboard() {
           <div className="flex items-center gap-3">
             <UserMenu
               user={{ name: user.name, email: user.email, image: user.image }}
+              hasProjects={projects.length > 0}
             />
           </div>
         </div>

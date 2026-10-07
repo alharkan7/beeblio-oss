@@ -1,15 +1,16 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { defineAgent, defineDynamic } from "eve";
 import { timedModelFetch } from "./lib/model-timeout";
+import { appSetting, openRouterApiKey } from "../lib/app-settings";
 
-// Direct OpenRouter models do not provide Eve with context-window metadata.
-// Configure the size for the model selected in OPENROUTER_MODEL_ID.
+// Direct OpenRouter models do not provide Eve with context-window metadata,
+// so the size of the selected main model is configured alongside it.
 function mainModelConfig() {
-  const modelId = process.env.OPENROUTER_MODEL_ID?.trim();
-  const contextWindow = Number(process.env.OPENROUTER_MODEL_CONTEXT_WINDOW_TOKENS);
-  if (!modelId) throw new Error("OPENROUTER_MODEL_ID is not configured");
+  const modelId = appSetting("OPENROUTER_MODEL_ID");
+  const contextWindow = Number(appSetting("OPENROUTER_MODEL_CONTEXT_WINDOW_TOKENS"));
+  if (!modelId) throw new Error("Choose a main model in Settings → Models");
   if (!Number.isSafeInteger(contextWindow) || contextWindow <= 0) {
-    throw new Error("OPENROUTER_MODEL_CONTEXT_WINDOW_TOKENS must be a positive integer for the selected model");
+    throw new Error("Set the main model's context window in Settings → Models");
   }
   return { modelId, contextWindow };
 }
@@ -22,7 +23,9 @@ export default defineAgent({
     events: {
       "step.started": async () => {
         const fetch = timedModelFetch();
-        const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY, fetch });
+        const apiKey = openRouterApiKey();
+        if (!apiKey) throw new Error("Add your OpenRouter API key in Settings → API Keys");
+        const openrouter = createOpenRouter({ apiKey, fetch });
         const { modelId, contextWindow } = mainModelConfig();
         return { model: openrouter(modelId), modelContextWindowTokens: contextWindow };
       },

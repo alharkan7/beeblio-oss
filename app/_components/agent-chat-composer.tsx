@@ -2,6 +2,7 @@ import {
   type ChangeEvent,
   type KeyboardEvent,
   type RefObject,
+  useEffect,
   useState,
 } from "react";
 import {
@@ -14,11 +15,15 @@ import {
   Pencil,
   Square,
   Quote,
+  ScreenShare,
   Wrench,
   X,
 } from "lucide-react";
 
+import { toast } from "sonner";
+
 import {
+  captureScreenshot,
   PromptInput,
   type PromptInputMessage,
   PromptInputButton,
@@ -278,6 +283,7 @@ export function AgentChatComposer({
         </div>
       ) : null}
       <PromptInput
+        data-tour="composer"
         accept="application/x-beeblio-workspace-upload"
         className="rounded-xl border-border bg-card shadow-sm"
         onDrop={(event) => {
@@ -427,6 +433,7 @@ export function AgentChatComposer({
               </TooltipTrigger>
               <TooltipContent>Upload &amp; mention</TooltipContent>
             </Tooltip>
+            <ScreenshotButton disabled={isUploading} onCapture={onUpload} />
             {hasWorkspaceSelection ? (
               <button
                 type="button"
@@ -732,4 +739,42 @@ export function normalizeInlineSkillMentions(text: string, slugs: string[]) {
 
 export function containsSkillMention(text: string, slug: string) {
   return new RegExp(`/${escapeRegExp(slug)}(?=\\s|$)`).test(text);
+}
+
+/**
+ * Attaches a screenshot the same way as "Upload & mention". Shown only in the
+ * desktop app, which has its own screen picker (desktop/src/screen-capture.ts);
+ * in a browser, people can paste or drop a screenshot instead.
+ */
+function ScreenshotButton({ disabled, onCapture }: { disabled: boolean; onCapture: (files: File[]) => void | Promise<void> }) {
+  const [available, setAvailable] = useState(false);
+  const [capturing, setCapturing] = useState(false);
+  // Checked after mount: the server render cannot know whether this is the desktop app.
+  useEffect(() => setAvailable(Boolean(window.beeblioDesktop && navigator.mediaDevices?.getDisplayMedia)), []);
+  if (!available) return null;
+
+  const capture = async () => {
+    setCapturing(true);
+    try {
+      const file = await captureScreenshot();
+      if (file) await onCapture([file]);
+    } catch (error) {
+      // A cancelled picker: browsers report NotAllowedError, Electron AbortError.
+      const cancelled = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "AbortError");
+      if (!cancelled) toast.error("The screenshot could not be taken. Try again.");
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <PromptInputButton type="button" aria-label="Take screenshot" disabled={disabled || capturing} onClick={() => void capture()}>
+          {capturing ? <Loader2 className="animate-spin" /> : <ScreenShare />}
+        </PromptInputButton>
+      </TooltipTrigger>
+      <TooltipContent>Take screenshot</TooltipContent>
+    </Tooltip>
+  );
 }

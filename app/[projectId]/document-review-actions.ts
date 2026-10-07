@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { requireUser } from "@/lib/auth/session";
 import { parseBibtexEntries } from "@/lib/bibtex";
+import { appSetting, openRouterApiKey } from "@/lib/app-settings";
 import { chunkDocumentForReview, MAX_REVIEW_DOCUMENT_CHARACTERS, type DocumentReviewChunk } from "@/lib/document-review-chunks";
 import { readAgentWorkspaceFile } from "@/lib/workspace-files";
 import { getOwnedProject } from "./actions";
@@ -224,9 +225,9 @@ export async function reviewDocument(input: unknown): Promise<DocumentReviewResu
   if (!project) return failure("Project not found.", "INVALID_REQUEST");
   if (!/\.(md|markdown)$/i.test(parsed.data.filePath)) return failure("Document review currently supports Markdown files.", "INVALID_REQUEST");
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const modelId = process.env.OPENROUTER_MODEL_ID_REVIEW || process.env.OPENROUTER_MODEL_ID;
-  if (!apiKey || !modelId) return failure("Document review is not configured.", "NOT_CONFIGURED");
+  const apiKey = openRouterApiKey();
+  const modelId = appSetting("OPENROUTER_MODEL_ID_REVIEW") || appSetting("OPENROUTER_MODEL_ID");
+  if (!apiKey || !modelId) return failure("Document review needs an OpenRouter key and model. Add them in Settings.", "NOT_CONFIGURED");
 
   let bibliography = "";
   try {

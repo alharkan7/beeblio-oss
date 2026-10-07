@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { EditorShell } from "./editor-shell";
 import { EditorError, EditorLoading } from "./editor-states";
 import { extensionOf, type WorkspaceEditorProps } from "./types";
+import { errorDetail } from "@/lib/error-detail";
 
 type SlideText = { text: string; x: number; y: number; width: number; height: number; fontSize: number };
 type Slide = { title: string; elements: SlideText[] };
@@ -30,7 +31,7 @@ export function PresentationViewer({ file, sourceUrl }: WorkspaceEditorProps) {
         const zip = await JSZip.loadAsync(await response.arrayBuffer());
         const parsed = extensionOf(file.name) === "odp" ? await parseOdp(zip) : await parsePptx(zip);
         if (!cancelled) setSlides(parsed);
-      } catch (cause) { if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to open presentation."); }
+      } catch (cause) { if (!cancelled) setError(errorDetail(cause, "Unable to open presentation.")); }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };

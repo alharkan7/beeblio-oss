@@ -11,6 +11,8 @@ import {
 } from "@/lib/knowledge-citations";
 import { PROJECT_BIBLIOGRAPHY_PATH } from "@/lib/project-bibliography";
 import { readWorkspaceFile, statWorkspaceFile, WorkspaceFileError } from "@/lib/workspace-files";
+import { appSetting } from "@/lib/app-settings";
+import { settingDefinition } from "@/lib/app-settings-registry";
 
 const POLL_MS = 2_000;
 const POLL_TIMEOUT_MS = 4 * 60_000;
@@ -60,14 +62,15 @@ export type KnowledgeSearchOptions = {
 };
 
 function google() {
-  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GOOGLE_API_KEY is not configured");
+  // GEMINI_API_KEY is the name Google's own tools use, so it is accepted too.
+  const apiKey = appSetting("GOOGLE_API_KEY") || process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("Knowledge search needs a Google Gemini API key. Add one in Settings → API Keys.");
   return new GoogleGenAI({ apiKey });
 }
 
 function configuredModel(name: "GOOGLE_KNOWLEDGE_EMBEDDING_MODEL_ID" | "GOOGLE_KNOWLEDGE_QUERY_MODEL_ID") {
-  const model = process.env[name]?.trim();
-  if (!model) throw new Error(`${name} is not configured`);
+  const model = appSetting(name);
+  if (!model) throw new Error(`Set the ${settingDefinition(name)?.label.toLowerCase() ?? name} in Settings → Google AI.`);
   return model;
 }
 

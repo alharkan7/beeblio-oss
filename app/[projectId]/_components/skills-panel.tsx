@@ -10,7 +10,7 @@ import {
   TriangleAlert,
   PencilSparkles,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -41,6 +41,7 @@ import {
   validateSkillDraft,
 } from "@/lib/skill-markdown";
 import { createSkill, deleteSkill, getSkill, listSkills, saveSkill, type SkillSummary } from "../skill-actions";
+import { errorDetail } from "@/lib/error-detail";
 
 type EditorMode = "form" | "markdown";
 
@@ -78,20 +79,33 @@ export function SkillsPanel({ initialSkills }: { initialSkills?: SkillSummary[] 
     return () => window.clearTimeout(timer);
   }, [savedFlashAt]);
 
+  // Set when the list has never loaded. Shown in place of the empty state,
+  // which would otherwise invite creating a skill the agent cannot save.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const hasList = useRef(skills !== null);
+
   const refreshSkills = useCallback(async () => {
     try {
       const list = await listSkills();
       rememberSkills(list);
       setSkills(list);
+      hasList.current = true;
+      setLoadFailed(false);
     } catch (error) {
-      toast.error("Failed to load skills", {
-        description: error instanceof Error ? error.message : undefined,
-      });
-      // Keep whatever the panel already shows (cache or seed) on a failed
-      // refresh; only fall back to the empty state when there is nothing.
-      setSkills((current) => current ?? []);
+      // Background refreshes run on every window focus, so a toast here
+      // would repeat for as long as the agent is unreachable. A list already
+      // on screen (cache or seed) stays as it is.
+      console.error("[skills] refresh failed", error);
+      if (!hasList.current) setLoadFailed(true);
     }
   }, []);
+
+  const retryLoad = async () => {
+    setRetrying(true);
+    await refreshSkills();
+    setRetrying(false);
+  };
 
   // Reconcile against the server in the background on mount and when the tab
   // regains focus, so cached content paints instantly and staleness is brief.
@@ -141,7 +155,7 @@ export function SkillsPanel({ initialSkills }: { initialSkills?: SkillSummary[] 
     } catch (error) {
       if (cachedMarkdown !== undefined) return;
       toast.error("Failed to open skill", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
       setEditor(undefined);
     }
@@ -197,7 +211,7 @@ export function SkillsPanel({ initialSkills }: { initialSkills?: SkillSummary[] 
         };
       } catch (error) {
         toast.error("Fix the markdown first", {
-          description: error instanceof Error ? error.message : undefined,
+          description: errorDetail(error),
         });
         return current;
       }
@@ -228,7 +242,7 @@ export function SkillsPanel({ initialSkills }: { initialSkills?: SkillSummary[] 
         parseSkillMarkdown(markdown);
       } catch (error) {
         toast.error("Fix the markdown first", {
-          description: error instanceof Error ? error.message : undefined,
+          description: errorDetail(error),
         });
         return;
       }
@@ -267,7 +281,7 @@ export function SkillsPanel({ initialSkills }: { initialSkills?: SkillSummary[] 
       );
     } catch (error) {
       toast.error("Failed to save skill", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
       setEditor((current) => (current ? { ...current, saving: false } : current));
     }
@@ -285,7 +299,7 @@ export function SkillsPanel({ initialSkills }: { initialSkills?: SkillSummary[] 
       await refreshSkills();
     } catch (error) {
       toast.error("Failed to delete skill", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setDeletePending(false);
@@ -508,7 +522,19 @@ export function SkillsPanel({ initialSkills }: { initialSkills?: SkillSummary[] 
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {skills === null ? (
+        {skills === null && loadFailed ? (
+          <div className="flex h-36 flex-col items-center justify-center rounded-xl border border-dashed px-4 text-center" role="alert">
+            <TriangleAlert className="mb-2 size-5 text-amber-600 dark:text-amber-400" />
+            <span className="text-sm font-medium text-foreground">Skills could not be loaded</span>
+            <span className="mt-1 max-w-52 text-xs leading-5 text-muted-foreground">
+              The agent is not responding. It may still be starting.
+            </span>
+            <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => void retryLoad()} disabled={retrying}>
+              {retrying ? <Loader2 className="animate-spin" /> : null}
+              Try again
+            </Button>
+          </div>
+        ) : skills === null ? (
           <div className="flex h-24 items-center justify-center">
             <Loader2 className="size-4 animate-spin text-muted-foreground" />
           </div>

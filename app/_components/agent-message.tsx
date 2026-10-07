@@ -48,6 +48,7 @@ import { describeToolCall } from "@/lib/tool-labels";
 import { rewriteWorkspaceSchemeLinks } from "@/lib/markdown-workspace-links";
 import { workspaceFilePath, blockedUrlWorkspacePath } from "@/lib/workspace-file-path";
 import { isWorkspaceDirectory } from "@/lib/workspace-entry-index";
+import { errorDetail } from "@/lib/error-detail";
 
 export type AgentInputResponse = {
   readonly optionId?: string;
@@ -1109,7 +1110,7 @@ function InputRequestActions({
     try {
       await onInputResponses([{ requestId: inputRequest.requestId, text }]);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Could not send response");
+      setSubmitError(errorDetail(error, "Could not send response"));
       setSubmitting(false);
     }
   };

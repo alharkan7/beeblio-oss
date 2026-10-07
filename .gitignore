@@ -11,6 +11,9 @@ local-s3
 .output
 .nitro
 dist
+# Desktop packaging: staged servers and the installers built from them
+desktop/build/
+desktop/release/
 .DS_Store
 *.tsbuildinfo
 .zcode

@@ -71,6 +71,7 @@ import { prefetchTextFile } from "./editors/text-content-cache";
 import { WorkspaceFileActions } from "./workspace-file-actions";
 import { MatrixTargetDialog, useMatrixAdd } from "./matrix-add";
 import { BibliographyAddMenu } from "./bibliography-add-menu";
+import { errorDetail } from "@/lib/error-detail";
 
 export type ResearchArtifactView = "references" | "data" | "analysis" | "reports" | "figures";
 
@@ -360,7 +361,7 @@ export function ResearchArtifactBrowser({
       onOpenFile(file, true);
     } catch (error) {
       toast.error("Failed to create form", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setNewFormPending(false);
@@ -390,7 +391,7 @@ export function ResearchArtifactBrowser({
       onOpenFile(file, true);
     } catch (error) {
       toast.error("Could not create the matrix", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setNewMatrixPending(false);

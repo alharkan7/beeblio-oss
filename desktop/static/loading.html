@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file:; style-src 'unsafe-inline'">
+  <title>Beeblio</title>
+  <style>
+    :root { color-scheme: light dark; --background: #f9f7f1; --muted: #5f6b78; }
+    @media (prefers-color-scheme: dark) { :root { --background: #0b1015; --muted: #9aa4b1; } }
+    html, body { height: 100%; margin: 0; }
+    body { display: grid; place-items: center; background: var(--background); color: var(--muted); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { display: grid; justify-items: center; gap: 16px; }
+    img { width: 56px; height: 56px; animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: 0.45; } }
+    @media (prefers-reduced-motion: reduce) { img { animation: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="beeblio-mark.svg" alt="">
+    <p>Starting Beeblio…</p>
+  </main>
+</body>
+</html>

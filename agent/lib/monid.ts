@@ -1,3 +1,5 @@
+import { appSetting } from "../../lib/app-settings";
+
 const MONID_API_URL = "https://api.monid.ai/v1/run";
 const MONID_TIMEOUT_MS = 120_000;
 
@@ -12,9 +14,9 @@ type MonidRun = {
 };
 
 function getMonidApiKey() {
-  const apiKey = process.env.MONID_API_KEY?.trim();
+  const apiKey = appSetting("MONID_API_KEY");
   if (!apiKey) {
-    throw new Error("MONID_API_KEY is not configured.");
+    throw new Error("Add a Monid API key in Settings → API Keys.");
   }
   return apiKey;
 }

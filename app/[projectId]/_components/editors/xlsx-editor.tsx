@@ -10,6 +10,7 @@ import { DataGrid, type GridRows } from "./data-grid";
 import { EditorShell } from "./editor-shell";
 import { EditorError, EditorLoading } from "./editor-states";
 import type { WorkspaceEditorProps } from "./types";
+import { errorDetail } from "@/lib/error-detail";
 
 export function XlsxEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceEditorProps) {
   const [workbook, setWorkbook] = useState<Workbook>();
@@ -37,7 +38,7 @@ export function XlsxEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceEdi
         setSheetName(first.name);
         setRows(worksheetRows(first));
       } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to read workbook.");
+        if (!cancelled) setError(errorDetail(cause, "Unable to read workbook."));
       } finally {
         if (!cancelled) setLoading(false);
       }

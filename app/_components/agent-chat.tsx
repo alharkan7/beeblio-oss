@@ -60,6 +60,7 @@ import {
 } from "./agent-chat-composer";
 import { AgentMessageList } from "./agent-message-list";
 import { ConversationLoading } from "./conversation-loading";
+import { errorDetail } from "@/lib/error-detail";
 
 const transitionEventCache = new Map<string, readonly MessageStreamEvent[]>();
 
@@ -899,7 +900,7 @@ function AgentChatInner({
       window.dispatchEvent(new CustomEvent("beeblio:workspace-changed"));
     } catch (error) {
       toast.error("File upload failed", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       setIsUploading(false);
@@ -1332,5 +1333,5 @@ function isOpenFileOutput(
 }
 
 function toErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Unable to cancel the response.";
+  return errorDetail(error, "Unable to cancel the response.");
 }

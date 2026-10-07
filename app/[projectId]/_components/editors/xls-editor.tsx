@@ -10,6 +10,7 @@ import { DataGrid, type GridRows } from "./data-grid";
 import { EditorShell } from "./editor-shell";
 import { EditorError, EditorLoading } from "./editor-states";
 import type { WorkspaceEditorProps } from "./types";
+import { errorDetail } from "@/lib/error-detail";
 
 export function XlsEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceEditorProps) {
   const [workbook, setWorkbook] = useState<WorkBook>();
@@ -26,7 +27,7 @@ export function XlsEditor({ projectId, file, sourceUrl, onSaved }: WorkspaceEdit
       const first = book.SheetNames[0];
       if (!first) throw new Error("The workbook has no worksheets.");
       if (!cancelled) { setWorkbook(book); setSheetName(first); setRows(sheetRows(book, first)); }
-    }).catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to read XLS workbook."); }).finally(() => { if (!cancelled) setLoading(false); });
+    }).catch((cause) => { if (!cancelled) setError(errorDetail(cause, "Unable to read XLS workbook.")); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [sourceUrl]);
   const selectSheet = (name: string) => { if (workbook) { setSheetName(name); setRows(sheetRows(workbook, name)); } };

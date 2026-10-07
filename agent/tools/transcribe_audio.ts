@@ -9,6 +9,7 @@ import {
   resolveAuthenticatedWorkspace,
   toWorkspaceRelativePath,
 } from "../workspace-paths";
+import { appSetting } from "../../lib/app-settings";
 
 const defaultMaxAudioBytes = 25 * 1024 * 1024;
 const geminiApiBase = "https://generativelanguage.googleapis.com/v1beta";
@@ -125,15 +126,15 @@ export default defineTool({
       );
     }
 
-    const apiKey = process.env.GOOGLE_API_KEY;
+    const apiKey = appSetting("GOOGLE_API_KEY");
     if (!apiKey) {
       throw new Error(
-        "GOOGLE_API_KEY is not configured; it is required for transcription",
+        "Transcription needs a Google Gemini API key. Add one in Settings → API Keys.",
       );
     }
-    const modelId = process.env.GOOGLE_TRANSCRIPTION_MODEL_ID?.trim();
+    const modelId = appSetting("GOOGLE_TRANSCRIPTION_MODEL_ID");
     if (!modelId) {
-      throw new Error("GOOGLE_TRANSCRIPTION_MODEL_ID is not configured");
+      throw new Error("Set the transcription model in Settings → Google AI.");
     }
 
     // Timestamps are needed for subtitle formats even without speaker labels;

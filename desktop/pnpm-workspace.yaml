@@ -1,0 +1,8 @@
+# Marks desktop/ as its own pnpm root: the web app's install and CI never
+# download Electron. Electron fetches its binary on first launch.
+packages: []
+allowBuilds:
+  # Bundles the main process; its install script checks the platform binary.
+  esbuild: true
+  # Squirrel.Windows support; the Windows installer is NSIS, so it is unused.
+  electron-winstaller: false

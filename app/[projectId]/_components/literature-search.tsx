@@ -49,6 +49,7 @@ import { getMatrixSavedState } from "../matrix-actions";
 import { ReferenceSheet, literatureSourceLabels as sourceLabels, referenceFromSearchItem } from "./reference-sheet";
 import { MatrixTargetDialog, useMatrixAdd, type MatrixAddRequest } from "./matrix-add";
 import { rememberLiteratureMatrixPaths } from "./matrix-membership-cache";
+import { errorDetail } from "@/lib/error-detail";
 
 type LiteratureSort = "relevance" | "year-desc" | "year-asc" | "citations-desc" | "citations-asc" | "title-asc" | "title-desc";
 type SearchDefinition = Pick<LiteratureSearchSnapshot, "query" | "source" | "openAccessOnly">;
@@ -374,7 +375,7 @@ export function LiteratureSearch({
       });
       void syncSavedState(response.items);
     } catch (error) {
-      setSearchError(error instanceof Error ? error.message : "Literature search failed.");
+      setSearchError(errorDetail(error, "Literature search failed."));
     } finally {
       setSearching(false);
     }
@@ -418,7 +419,7 @@ export function LiteratureSearch({
       });
       void syncSavedState(merged.items);
     } catch (error) {
-      setSearchError(error instanceof Error ? error.message : "Could not load more literature.");
+      setSearchError(errorDetail(error, "Could not load more literature."));
     } finally {
       setLoadingMore(false);
     }
@@ -462,7 +463,7 @@ export function LiteratureSearch({
     } catch (error) {
       rollback();
       toast.error("Could not save citation", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       finishSaving(item.id, "citation");
@@ -501,7 +502,7 @@ export function LiteratureSearch({
       });
     } catch (error) {
       toast.error("Could not save PDF", {
-        description: error instanceof Error ? error.message : undefined,
+        description: errorDetail(error),
       });
     } finally {
       finishSaving(item.id, "pdf");
