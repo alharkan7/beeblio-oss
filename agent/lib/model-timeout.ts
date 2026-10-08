@@ -2,7 +2,7 @@
 // configured for installations that want to bound a single OpenRouter call.
 export function timedModelFetch(): typeof fetch {
   return (input, init) => {
-    const timeoutMs = Number(process.env.OPENROUTER_REQUEST_TIMEOUT_MS);
+    const timeoutMs = Number(process.env.OPENROUTER_REQUEST_TIMEOUT_MS || 180_000);
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) return fetch(input, init);
     const timeout = AbortSignal.timeout(timeoutMs);
     const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);

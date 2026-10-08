@@ -40,7 +40,7 @@ Choose **Link Project Folder** to select a folder. You can also paste its absolu
 
 ## Configuration
 
-The main agent needs `OPENROUTER_API_KEY`, `OPENROUTER_MODEL_ID`, and `OPENROUTER_MODEL_CONTEXT_WINDOW_TOKENS`. Set the context window to the token limit of the OpenRouter model you selected. Copy [`.env.example`](./.env.example) for all settings:
+The main agent needs an OpenRouter key and model. You can set `OPENROUTER_API_KEY`, `OPENROUTER_MODEL_ID`, and `OPENROUTER_MODEL_CONTEXT_WINDOW_TOKENS` in `.env.local` as initial defaults. After starting the app, open **Settings** from the workspace menu (or visit `/account`) to choose separate models for agent conversations, conversation titles, sentence suggestions, document review, equation generation, and image analysis. Saving checks the key and models with OpenRouter; the chat model must support tools. A key entered there is encrypted in the local `.beeblio/ai-settings.json` file. `.env.local` remains the fallback when no key is saved. Copy [`.env.example`](./.env.example) for all settings:
 
 | Setting | Used for |
 | --- | --- |

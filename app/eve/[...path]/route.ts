@@ -5,6 +5,7 @@ import { agentSessions, projects } from "@/db/schema";
 import { getUser } from "@/lib/auth/session";
 import { mintAgentToken } from "@/lib/agent-token";
 import { generateConversationTitle } from "@/lib/conversation-title";
+import { getAiTaskConfig } from "@/lib/local-ai-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,11 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
   const headers = new Headers(req.headers);
   for (const name of ["host", "cookie", "transfer-encoding", "content-length", "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "upgrade", "accept-encoding", "x-credit-reservation-id", "x-credit-execution-class", "x-beeblio-model-source", "x-beeblio-model-id", "x-beeblio-model-context-window-tokens", "x-beeblio-app-session-id", "x-turn-model-deadline-at"]) headers.delete(name);
   headers.set("authorization", `Bearer ${mintAgentToken(user.id)}`);
-  headers.set("x-model-source", "system");
+  const chatModel = await getAiTaskConfig("chat");
+  if (!chatModel.apiKey || !chatModel.modelId) return new Response("Chat model is not configured", { status: 503 });
+  headers.set("x-model-source", "local");
+  headers.set("x-model-id", chatModel.modelId);
+  headers.set("x-model-context-window-tokens", String(chatModel.contextLength));
 
   if (targetPath === "v1/session" && req.method === "POST") {
     const appSessionId = req.headers.get("x-beeblio-app-session-id")?.trim();

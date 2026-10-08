@@ -2,6 +2,7 @@
 
 import path from "node:path";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { getAiTaskConfig } from "@/lib/local-ai-settings";
 import { generateText } from "ai";
 import { z } from "zod";
 
@@ -339,8 +340,7 @@ export async function generateSentenceSuggestion(input: unknown): Promise<Senten
   if (!project) return { error: "Project not found." };
 
   const completionSettings = parseProjectSettings(project.settings).completion ?? DEFAULT_COMPLETION_SETTINGS;
-  const modelId = process.env.OPENROUTER_MODEL_ID_LITE || process.env.OPENROUTER_MODEL_ID;
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const { modelId, apiKey } = await getAiTaskConfig("sentenceSuggestion");
   if (!modelId || !apiKey) return { error: "Sentence suggestions are not configured." };
   const bounds = completionBounds(completionSettings.filters);
 

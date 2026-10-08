@@ -4,6 +4,7 @@ import { defineTool } from "eve/tools";
 import { z } from "zod";
 import { readWorkspaceFile } from "../workspace-files";
 import { timedModelFetch } from "../lib/model-timeout";
+import { getAiTaskConfig } from "../../lib/local-ai-settings";
 import {
   resolveAuthenticatedWorkspace,
   toWorkspaceRelativePath,
@@ -68,8 +69,7 @@ export default defineTool({
       );
     }
 
-    const modelId =
-      process.env.OPENROUTER_VISION_MODEL_ID ?? process.env.OPENROUTER_MODEL_ID;
+    const { modelId, apiKey } = await getAiTaskConfig("imageAnalysis");
     if (!modelId) {
       throw new Error(
         "Set OPENROUTER_VISION_MODEL_ID (or OPENROUTER_MODEL_ID) to a vision-capable model.",
@@ -77,7 +77,7 @@ export default defineTool({
     }
 
     const openrouter = createOpenRouter({
-      apiKey: process.env.OPENROUTER_API_KEY,
+      apiKey: apiKey || "missing-openrouter-key",
       fetch: timedModelFetch(),
     });
     const result = await generateText({

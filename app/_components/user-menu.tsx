@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ArrowUpRight, Globe, Moon, Settings, Sun, User } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -63,6 +64,7 @@ export function UserMenu({
           collisionPadding={12}
           className="w-56 animate-in slide-in-from-top-2"
         >
+          <DropdownMenuItem asChild><Link href="/account"><Settings className="h-4 w-4" /><span>Settings</span></Link></DropdownMenuItem>
           {projectId ? (
             <DropdownMenuItem
               className="cursor-pointer"

@@ -2,6 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { getAiTaskConfig } from "@/lib/local-ai-settings";
 import { generateText, NoOutputGeneratedError, Output } from "ai";
 import { z } from "zod";
 
@@ -224,8 +225,7 @@ export async function reviewDocument(input: unknown): Promise<DocumentReviewResu
   if (!project) return failure("Project not found.", "INVALID_REQUEST");
   if (!/\.(md|markdown)$/i.test(parsed.data.filePath)) return failure("Document review currently supports Markdown files.", "INVALID_REQUEST");
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const modelId = process.env.OPENROUTER_MODEL_ID_REVIEW || process.env.OPENROUTER_MODEL_ID;
+  const { modelId, apiKey } = await getAiTaskConfig("documentReview");
   if (!apiKey || !modelId) return failure("Document review is not configured.", "NOT_CONFIGURED");
 
   let bibliography = "";

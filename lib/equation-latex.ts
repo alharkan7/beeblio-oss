@@ -4,6 +4,7 @@ import { integerEnv } from "@/lib/env-config";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { getAiTaskConfig } from "@/lib/local-ai-settings";
 
 export const EQUATION_PROMPT_MAX_CHARS = 1_000;
 export const EQUATION_LATEX_MAX_CHARS = 4_000;
@@ -23,8 +24,7 @@ export async function generateEquationLatex(input: {
 }): Promise<{ latex: string; modelSource: "system" | "byok" } | { error: string }> {
   const project = await db.query.projects.findFirst({ where: and(eq(projects.slug, input.projectId), eq(projects.userId, input.userId)) });
   if (!project) return { error: "Project not found." };
-  const modelId = process.env.OPENROUTER_MODEL_ID_LITE || process.env.OPENROUTER_MODEL_ID;
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const { modelId, apiKey } = await getAiTaskConfig("equation");
   if (!modelId || !apiKey) return { error: "Equation AI is not configured." };
 
   try {
