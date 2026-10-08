@@ -79,6 +79,7 @@ import {
 } from "@/lib/chat-context";
 import { OPEN_LITERATURE_SEARCH_EVENT, type OpenLiteratureSearchDetail } from "@/lib/literature/types";
 import { PROJECT_BIBLIOGRAPHY_PATH } from "@/lib/project-bibliography";
+import { isMarkdownFilePath } from "@/lib/project-settings";
 import { WORKSPACE_CHANGED_EVENT, type WorkspaceChangedDetail } from "@/lib/workspace-change";
 import {
   dispatchWorkspaceMutation,
@@ -923,6 +924,9 @@ export function ProjectLayoutUI({
   }, [activeFile]);
 
   useEffect(() => setSelection(undefined), [activeFilePath]);
+  useEffect(() => {
+    if (!activeFilePath || !isMarkdownFilePath(activeFilePath)) setReviewOpen(false);
+  }, [activeFilePath]);
 
   const captureTextControlSelection = (event: SyntheticEvent<HTMLDivElement>) => {
     const control = event.target;
@@ -1364,7 +1368,7 @@ export function ProjectLayoutUI({
               </TooltipTrigger>
               <TooltipContent>Quick Open (⌘P / Ctrl+P)</TooltipContent>
             </Tooltip>
-            {!reviewOpen ? <Tooltip>
+            {activeFilePath && isMarkdownFilePath(activeFilePath) && !reviewOpen ? <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   size="icon-sm"
