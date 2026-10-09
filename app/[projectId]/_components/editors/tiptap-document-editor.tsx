@@ -357,35 +357,6 @@ export function MarkdownTiptapEditor({
     }
   };
 
-  // Accepted sentence suggestions may cite entries from a library file other
-  // than references.bib; those entries are copied into references.bib so the
-  // document's citations and bibliography resolve.
-  const appendCatalogEntries = async (entries: Array<{ key: string; bibtex: string }>) => {
-    let source = bibliographySourceRef.current;
-    if (source === null) {
-      await loadReferences();
-      source = bibliographySourceRef.current;
-      if (source === null) throw new Error("The bibliography could not be loaded.");
-    }
-    const existing = new Set(parseBibtexEntries(source).map((entry) => entry.key));
-    const additions = entries
-      .map((entry) => entry.bibtex.trim())
-      .filter((bibtex, index) => {
-        const key = parseBibtexEntries(bibtex)[0]?.key ?? entries[index].key;
-        return key ? !existing.has(key) : false;
-      });
-    if (!additions.length) return;
-    const separator = source.length > 0 && !source.endsWith("\n\n")
-      ? source.endsWith("\n") ? "\n" : "\n\n"
-      : "";
-    const next = `${source}${separator}${additions.join("\n\n")}\n`;
-    await saveFile(projectId, PROJECT_BIBLIOGRAPHY_PATH, next);
-    writeCachedText(PROJECT_BIBLIOGRAPHY_PATH, next);
-    bibliographySourceRef.current = next;
-    await loadReferences();
-    window.dispatchEvent(new CustomEvent("beeblio:workspace-changed"));
-  };
-
   // File embeds for the "@" menu: fetched the first time the menu opens and
   // re-fetched on every reopen so newly uploaded figures appear. Previously
   // fetched entries stay visible while a reopen refresh is in flight. Skipped
@@ -1217,7 +1188,6 @@ export function MarkdownTiptapEditor({
             return [...current, ...pending.filter((reference) => !known.has(reference.id))];
           })}
           onReferencesChanged={loadReferences}
-          onSaveCatalogEntries={appendCatalogEntries}
           activeRef={activeSuggestionRef}
           processingRef={processingSuggestionRef}
           acceptRef={acceptSuggestionRef}

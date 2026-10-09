@@ -263,6 +263,7 @@ export const CitationNode = Node.create({
   addAttributes() {
     return {
       id: { default: "" },
+      pendingSuggestionId: { default: "", renderHTML: () => ({}) },
       mode: {
         default: "default",
         parseHTML: (element) => (element as HTMLElement).dataset.citationMode ?? "default",

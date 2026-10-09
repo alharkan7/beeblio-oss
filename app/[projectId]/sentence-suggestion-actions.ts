@@ -8,20 +8,25 @@ import { z } from "zod";
 
 import { requireUser } from "@/lib/auth/session";
 import { parseBibtexEntries, type BibtexEntry } from "@/lib/bibtex";
+import { appendLiteratureItem } from "@/lib/bibliography-store";
 import { cleanBibtexText } from "@/lib/citations";
 import { integerEnv } from "@/lib/env-config";
 import { fileStem } from "@/lib/literature/citation-identity";
 import type { LiteratureItem } from "@/lib/literature/types";
+import { literatureItemSchema, verifySaveToken } from "@/lib/literature/save-token";
 import { CITATION_TOKEN_REGEX } from "@/lib/markdown-bibliography";
+import { evidenceScore, rankByEvidence } from "@/lib/sentence-suggestion-ranking";
 import {
   DEFAULT_COMPLETION_SETTINGS,
   parseProjectSettings,
   type CompletionSettings,
 } from "@/lib/project-settings";
-import { PROJECT_BIBLIOGRAPHY_PATH } from "@/lib/project-bibliography";
+import { PROJECT_BIBLIOGRAPHY_PATH, REFERENCES_DIRECTORY } from "@/lib/project-bibliography";
 import {
   AgentWorkspaceError,
+  createAgentWorkspaceDirectory,
   readAgentWorkspaceFile,
+  writeAgentWorkspaceFile,
 } from "@/lib/workspace-files";
 import { getOwnedProject } from "./actions";
 import { searchLiterature } from "./literature-actions";
@@ -52,27 +57,96 @@ export type SentenceSuggestionResult =
   }
   | { error: string };
 
-// The catalog is what the model cites from: keys already cited in the document
-// come first (most likely next citations), then entries whose titles share
-// words with the passage, capped small enough that a lite model actually reads
-// it — an oversized catalog is the fastest way to get uncited sentences.
-const CATALOG_MAX_ENTRIES = 60;
-const CATALOG_TITLE_MAX_CHARS = 80;
+const suggestedReferencesSchema = z.object({
+  projectId: z.string().regex(/^[A-Za-z0-9_-]+$/),
+  items: z.array(z.object({ key: z.string().min(1).max(200), item: literatureItemSchema })).max(4),
+  entries: z.array(z.object({ key: z.string().min(1).max(200), bibtex: z.string().min(1).max(30_000) })).max(4),
+});
+
+/** Save all references for an accepted suggestion in one local file write. */
+export async function saveSuggestedReferences(input: unknown): Promise<{ success: true; bibliographyContent: string; keys: Record<string, string> } | { success: false; error: string }> {
+  const parsed = suggestedReferencesSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: "The suggested references are invalid." };
+  const { projectId, items, entries } = parsed.data;
+  try {
+    const user = await requireUser();
+    if (!await getOwnedProject(user, projectId)) return { success: false, error: "Project not found." };
+    for (const { item } of items) {
+      if (!verifySaveToken(projectId, item)) return { success: false, error: "A search result expired. Request a new suggestion." };
+    }
+    let source = "";
+    let exists = true;
+    try {
+      source = await (await readAgentWorkspaceFile(user.id, projectId, PROJECT_BIBLIOGRAPHY_PATH)).text();
+    } catch (error) {
+      if (error instanceof AgentWorkspaceError && error.status === 404) exists = false;
+      else throw error;
+    }
+    const keys: Record<string, string> = {};
+    for (const { key, item } of items) {
+      const result = appendLiteratureItem(source, item);
+      source = result.content;
+      keys[key] = result.citationKey;
+    }
+    const known = new Set(parseBibtexEntries(source).map((entry) => entry.key));
+    for (const { key, bibtex } of entries) {
+      const parsedEntries = parseBibtexEntries(bibtex);
+      if (parsedEntries.length !== 1 || parsedEntries[0].key !== key) return { success: false, error: "A suggested library entry is invalid." };
+      keys[key] = key;
+      if (known.has(key)) continue;
+      source = `${source}${source && !source.endsWith("\n\n") ? source.endsWith("\n") ? "\n" : "\n\n" : ""}${bibtex.trim()}\n`;
+      known.add(key);
+    }
+    if (!exists) await createAgentWorkspaceDirectory(user.id, projectId, REFERENCES_DIRECTORY);
+    await writeAgentWorkspaceFile(user.id, projectId, PROJECT_BIBLIOGRAPHY_PATH, source);
+    return { success: true, bibliographyContent: source, keys };
+  } catch (error) {
+    console.error("[sentence-suggestion] citation save failed", error);
+    return { success: false, error: "The suggested citation could not be saved." };
+  }
+}
+
+const CATALOG_MAX_ENTRIES = 16;
+const CATALOG_TITLE_MAX_CHARS = 120;
+const CATALOG_ABSTRACT_MAX_CHARS = 220;
 const SENTENCE_MAX_CHARS = 600;
 const CITATION_TOKEN = CITATION_TOKEN_REGEX;
 
-type CatalogEntry = { key: string; label: string };
+type CatalogEntry = { key: string; label: string; evidence: string };
 
 async function readWorkspaceFile(userId: string, projectId: string, workspacePath: string) {
-  // Paths come from validated project settings, but stay defensive: a path
-  // that escapes the workspace must never reach storage.
   const normalized = path.posix.normalize(workspacePath);
   if (path.posix.isAbsolute(normalized) || normalized.startsWith("../") || normalized === "..") return "";
   try {
-    const response = await readAgentWorkspaceFile(userId, projectId, normalized);
-    return await response.text();
+    return await (await readAgentWorkspaceFile(userId, projectId, normalized)).text();
   } catch (error) {
     if (error instanceof AgentWorkspaceError && error.status === 404) return "";
+    throw error;
+  }
+}
+
+const libraryCache = new Map<string, { etag: string; source: string; entries: BibtexEntry[] }>();
+async function readLibrary(userId: string, projectId: string, workspacePath: string) {
+  const normalized = path.posix.normalize(workspacePath);
+  if (path.posix.isAbsolute(normalized) || normalized.startsWith("../") || normalized === "..") return { source: "", entries: [] as BibtexEntry[] };
+  const cacheKey = `${userId}\0${projectId}\0${normalized}`;
+  const cached = libraryCache.get(cacheKey);
+  try {
+    const response = await readAgentWorkspaceFile(userId, projectId, normalized, cached ? { ifNoneMatch: cached.etag } : undefined);
+    if (response.status === 304 && cached) return cached;
+    const source = await response.text();
+    const value = { etag: response.headers.get("etag") ?? "", source, entries: parseBibtexEntries(source) };
+    if (value.etag) {
+      libraryCache.delete(cacheKey);
+      libraryCache.set(cacheKey, value);
+      if (libraryCache.size > 64) libraryCache.delete(libraryCache.keys().next().value as string);
+    }
+    return value;
+  } catch (error) {
+    if (error instanceof AgentWorkspaceError && error.status === 404) {
+      libraryCache.delete(cacheKey);
+      return { source: "", entries: [] as BibtexEntry[] };
+    }
     throw error;
   }
 }
@@ -82,10 +156,6 @@ function firstAuthorFamily(authorField: string) {
   if (first.includes(",")) return cleanBibtexText(first.split(",")[0]);
   const parts = cleanBibtexText(first).split(/\s+/).filter(Boolean);
   return parts.at(-1) ?? "";
-}
-
-function contentWords(value: string) {
-  return new Set(value.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length >= 5));
 }
 
 // Active quality filters: inclusive publication year range and minimum
@@ -126,32 +196,19 @@ function itemPassesFilters(item: LiteratureItem, bounds: CompletionFilterBounds)
 function buildCatalog(entries: BibtexEntry[], citedKeys: string[], before: string) {
   const byKey = new Map(entries.map((entry) => [entry.key, entry]));
   const ordered: BibtexEntry[] = [];
-  for (const key of citedKeys) {
+  for (const key of [...citedKeys].reverse()) {
     const entry = byKey.get(key);
     if (entry && !ordered.includes(entry)) ordered.push(entry);
+    if (ordered.length >= 4) break;
   }
-  // Rank the rest by title-word overlap with the passage so the entries the
-  // sentence is most likely to cite sit at the top of the catalog.
-  const contextWords = contentWords(before);
-  const rest = entries
-    .filter((entry) => !ordered.includes(entry))
-    .map((entry) => {
-      const title = cleanBibtexText(entry.fields.title).toLowerCase();
-      let score = 0;
-      for (const word of contextWords) {
-        if (title.includes(word)) score += 1;
-      }
-      return { entry, score };
-    })
-    .sort((left, right) => right.score - left.score)
-    .map((item) => item.entry);
+  const rest = rankByEvidence(entries.filter((entry) => !ordered.includes(entry)), before.slice(-600), (entry) => ({
+    title: cleanBibtexText(entry.fields.title),
+    abstract: cleanBibtexText(entry.fields.abstract ?? ""),
+  }));
   return [...ordered, ...rest].slice(0, CATALOG_MAX_ENTRIES).map((entry): CatalogEntry => ({
     key: entry.key,
-    label: [
-      cleanBibtexText(entry.fields.year),
-      firstAuthorFamily(entry.fields.author),
-      cleanBibtexText(entry.fields.title).slice(0, CATALOG_TITLE_MAX_CHARS),
-    ].filter(Boolean).join(" | "),
+    label: [cleanBibtexText(entry.fields.year), firstAuthorFamily(entry.fields.author), cleanBibtexText(entry.fields.title).slice(0, CATALOG_TITLE_MAX_CHARS)].filter(Boolean).join(" | "),
+    evidence: cleanBibtexText(entry.fields.abstract ?? "").slice(0, CATALOG_ABSTRACT_MAX_CHARS),
   }));
 }
 
@@ -257,13 +314,10 @@ function resolveKey(key: string, catalogKeys: string[]): string | undefined {
   return prefixMatch ?? containsMatch;
 }
 
-function pickBestResult(items: LiteratureItem[]) {
-  if (!items.length) return undefined;
-  return [...items].sort((left, right) => {
-    const leftScore = (left.citationCount ?? -1) + (left.doi ? 0.5 : 0);
-    const rightScore = (right.citationCount ?? -1) + (right.doi ? 0.5 : 0);
-    return rightScore - leftScore;
-  })[0];
+function pickBestResult(items: LiteratureItem[], claim: string) {
+  const ranked = rankByEvidence(items, claim, (item) => ({ title: item.title, abstract: item.abstract }));
+  const best = ranked[0];
+  return best && evidenceScore(claim, best.title, best.abstract) >= 6 ? best : undefined;
 }
 
 function buildSystemPrompt(blockKind: "paragraph" | "heading", options: { literatureDb: boolean; hasCatalog: boolean }) {
@@ -281,7 +335,7 @@ function buildSystemPrompt(blockKind: "paragraph" | "heading", options: { litera
     '"sentence" is exactly ONE sentence continuing the text at the caret: no leading or trailing whitespace, no quotes, no markdown, no lists, no newlines.',
   ];
   if (options.hasCatalog || options.literatureDb) {
-    lines.push("Academic prose cites evidence: unless the sentence is purely transitional or structural, END it with exactly one citation token [@key] placed just before the final punctuation.");
+    lines.push("Cite only when the supplied source evidence directly supports the specific claim you write. A title alone is not proof. Mirror the evidence wording for study findings: when evidence says associated, correlated, reported, or observed, use those terms rather than claiming it helped, improved, increased, reduced, mitigated, or caused an outcome. Do not add a mechanism, population, intervention, or outcome absent from the evidence.");
     lines.push('The sentence always ends with terminal punctuation — when it ends with a citation token, the period comes AFTER the token, like "…tasks [@key]."');
   }
   if (options.hasCatalog) {
@@ -295,13 +349,9 @@ function buildSystemPrompt(blockKind: "paragraph" | "heading", options: { litera
     lines.push('No citation sources are available: write the sentence with no citation tokens at all and set "searchQuery" to "".');
   }
   if (options.hasCatalog || options.literatureDb) {
-    lines.push("A sentence with no citation token at all is acceptable only for transitions, restatements of the document's own text, or questions.");
+    lines.push("Add a new idea rather than paraphrasing the sentence before the caret. If no source supports a new claim, write a narrow transition without a citation or request a search. Do not invent findings or numbers. Keep searchQuery empty unless using [@SEARCH].");
   }
   lines.push("Match the language, tone, and terminology of the surrounding text; do not repeat what is already written.");
-  if (options.hasCatalog) {
-    lines.push('Example — catalog contains "smith-2020-deep-learning-for-ner-abc12345" and the text before the caret ends with "In particular,":');
-    lines.push('respond {"sentence":"transformer architectures now dominate named entity recognition tasks [@smith-2020-deep-learning-for-ner-abc12345].","searchQuery":""}.');
-  }
   return lines.join(" ");
 }
 
@@ -321,7 +371,7 @@ function buildUserPrompt(input: {
     parts.push(`The writer just accepted this AI sentence: "${input.avoidSentence}". Continue with a different idea. Do not restate or paraphrase it, even with a different citation.`);
   }
   if (input.catalog.length) {
-    parts.push(`Reference catalog (year | first author | title). To cite an entry, copy its key EXACTLY into [@key]:\n${input.catalog.map((entry) => `- ${entry.key} — ${entry.label}`).join("\n")}`);
+    parts.push(`Reference catalog (year | first author | title | available evidence). To cite an entry, copy its key EXACTLY into [@key]:\n${input.catalog.map((entry) => `- ${entry.key} — ${entry.label}${entry.evidence ? ` | Evidence: ${entry.evidence}` : " | No abstract available"}`).join("\n")}`);
   } else if (input.literatureDb) {
     parts.push("Reference catalog: (empty — the sentence needs a source, cite [@SEARCH] and provide a searchQuery)");
   } else {
@@ -344,18 +394,11 @@ export async function generateSentenceSuggestion(input: unknown): Promise<Senten
   if (!modelId || !apiKey) return { error: "Sentence suggestions are not configured." };
   const bounds = completionBounds(completionSettings.filters);
 
-  // The library read gates the model call, so it runs up front; the literature
-  // search (when needed) waits on the model's query. When the chosen library
-  // is not references.bib, the document bibliography is read too so cited
-  // keys missing from it can be flagged for the client to copy on accept.
   const libraryPath = completionSettings.sources.library ? completionSettings.sources.libraryPath : null;
-  const librarySource = libraryPath ? await readWorkspaceFile(user.id, projectId, libraryPath) : "";
-  const libraryEntries = parseBibtexEntries(librarySource)
-    .filter((entry) => entryPassesFilters(entry, bounds));
+  const library = libraryPath ? await readLibrary(user.id, projectId, libraryPath) : { source: "", entries: [] as BibtexEntry[] };
+  const librarySource = library.source;
+  const libraryEntries = library.entries.filter((entry) => entryPassesFilters(entry, bounds));
   const catalog = buildCatalog(libraryEntries, citedKeys, before);
-  const referencesKeys = libraryPath && libraryPath !== PROJECT_BIBLIOGRAPHY_PATH
-    ? new Set(parseBibtexEntries(await readWorkspaceFile(user.id, projectId, PROJECT_BIBLIOGRAPHY_PATH)).map((entry) => entry.key))
-    : null;
 
   let modelOutput: string;
   try {
@@ -383,6 +426,7 @@ export async function generateSentenceSuggestion(input: unknown): Promise<Senten
 
   const catalogKeys = catalog.map((entry) => entry.key);
   const catalogKeySet = new Set(catalogKeys);
+  sentence = sentence.replace(/\[([A-Za-z0-9_:.-]+)\]/g, (token, key: string) => catalogKeySet.has(key) ? `[@${key}]` : token);
   // Repair near-miss keys first (truncated or mistyped long keys); whatever
   // still does not resolve is treated as a deliberate search request.
   const unknown: string[] = [];
@@ -405,7 +449,7 @@ export async function generateSentenceSuggestion(input: unknown): Promise<Senten
   if (unknown.length > 0 && completionSettings.sources.literatureDb && searchQuery.length >= 2) {
     try {
       const results = await searchLiterature({ projectId, query: searchQuery, source: "all", openAccessOnly: false, page: 1 });
-      const best = pickBestResult(results.items.filter((item) => itemPassesFilters(item, bounds)));
+      const best = pickBestResult(results.items.filter((item) => itemPassesFilters(item, bounds)), sentence.replace(CITATION_TOKEN, " "));
       if (best) {
         const stem = fileStem(best);
         sentence = sentence.replaceAll(`[@${unknown[0]}]`, `[@${stem}]`);
@@ -437,7 +481,8 @@ export async function generateSentenceSuggestion(input: unknown): Promise<Senten
   // references.bib travel with the response so the client can copy the raw
   // entries over on accept.
   const pendingEntries: Array<{ key: string; bibtex: string }> = [];
-  if (referencesKeys) {
+  if (libraryPath && libraryPath !== PROJECT_BIBLIOGRAPHY_PATH && [...sentence.matchAll(CITATION_TOKEN)].some((match) => catalogKeySet.has(match[1]))) {
+    const referencesKeys = new Set(parseBibtexEntries(await readWorkspaceFile(user.id, projectId, PROJECT_BIBLIOGRAPHY_PATH)).map((entry) => entry.key));
     const entryByKey = new Map(libraryEntries.map((entry) => [entry.key, entry]));
     const seen = new Set<string>();
     for (const match of sentence.matchAll(CITATION_TOKEN)) {

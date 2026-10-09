@@ -136,9 +136,12 @@ async function transfer(userId: string, slug: string, source: string, destinatio
 export async function moveWorkspacePath(userId: string, slug: string, source: string, destination: string) { await transfer(userId, slug, source, destination, true); }
 export async function copyWorkspacePath(userId: string, slug: string, source: string, destination: string) { await transfer(userId, slug, source, destination, false); }
 export async function readWorkspaceFileAsResponse(userId: string, slug: string, workspacePath: string, options?: { ifNoneMatch?: string; range?: string }): Promise<Response> {
+  const stat = await statWorkspaceFile(userId, slug, workspacePath);
+  if (stat.isDir) invalid("Cannot read a directory");
+  const headers = new Headers({ ETag: stat.etag, "Accept-Ranges": "bytes", "Cache-Control": "no-store" });
+  if (options?.ifNoneMatch === stat.etag) return new Response(null, { status: 304, headers });
   const file = await readWorkspaceFile(userId, slug, workspacePath);
-  const headers = new Headers({ ETag: file.etag, "Accept-Ranges": "bytes", "Cache-Control": "no-store" });
-  if (options?.ifNoneMatch === file.etag) return new Response(null, { status: 304, headers });
+  headers.set("ETag", file.etag);
   const match = options?.range?.match(/^bytes=(\d+)-(\d*)$/);
   if (match) {
     const start = Number(match[1]); const end = match[2] ? Math.min(Number(match[2]), file.content.length - 1) : file.content.length - 1;

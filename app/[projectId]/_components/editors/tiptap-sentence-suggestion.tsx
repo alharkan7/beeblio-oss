@@ -15,8 +15,7 @@ import { formatCitation, referenceFromEntry, type CitationReference, type Citati
 import type { LiteratureItem } from "@/lib/literature/types";
 import { CITATION_TOKEN_REGEX } from "@/lib/markdown-bibliography";
 import { isNearSentenceRepeat } from "@/lib/sentence-suggestion-repeat";
-import { saveLiteratureCitation } from "../../literature-actions";
-import { generateSentenceSuggestion, type SentenceSuggestionResult } from "../../sentence-suggestion-actions";
+import { generateSentenceSuggestion, saveSuggestedReferences, type SentenceSuggestionResult } from "../../sentence-suggestion-actions";
 
 export type SuggestionSegment =
   | { kind: "text"; text: string }
@@ -59,6 +58,7 @@ const TRIGGER_IDLE_MS = 900;
 const CONTEXT_BEFORE_CHARS = 1_500;
 const CONTEXT_AFTER_CHARS = 400;
 const CACHE_MAX_ENTRIES = 24;
+const CACHE_TTL_MS = 5 * 60_000;
 const CITATION_TOKEN = CITATION_TOKEN_REGEX;
 // A caret may only receive suggestions at narrative boundaries: end of the
 // block, or right after sentence-final punctuation (with optional closing
@@ -210,7 +210,6 @@ export function SentenceSuggestions({
   citationOrder,
   onAddPendingReferences,
   onReferencesChanged,
-  onSaveCatalogEntries,
   activeRef,
   processingRef,
   acceptRef,
@@ -229,8 +228,6 @@ export function SentenceSuggestions({
   citationOrder: string[];
   onAddPendingReferences: (references: CitationReference[]) => void;
   onReferencesChanged: () => Promise<void> | void;
-  /** Copies accepted library entries that are missing into references.bib. */
-  onSaveCatalogEntries: (entries: Array<{ key: string; bibtex: string }>) => Promise<void> | void;
   /** Shared with the extension so decorations can read the active suggestion. */
   activeRef: { current: ActiveSentenceSuggestion | null };
   /** Shared with the extension so decorations can render the working cue. */
@@ -238,7 +235,7 @@ export function SentenceSuggestions({
   acceptRef: { current: () => void };
   dismissRef: { current: () => void };
 }) {
-  const cacheRef = useRef(new Map<string, Extract<SentenceSuggestionResult, { sentence: string }>>());
+  const cacheRef = useRef(new Map<string, { result: Extract<SentenceSuggestionResult, { sentence: string }>; storedAt: number }>());
   const shownKeyRef = useRef<string | null>(null);
   const dismissedKeyRef = useRef<string | null>(null);
   const failedKeyRef = useRef<string | null>(null);
@@ -250,8 +247,8 @@ export function SentenceSuggestions({
   const evaluateRef = useRef<() => void>(() => {});
   const acceptHandlerRef = useRef<() => void>(() => {});
   const dismissHandlerRef = useRef<() => void>(() => {});
-  const propsRef = useRef({ editor, projectId, enabled, disabled, style, referenceMap, citationOrder, onAddPendingReferences, onReferencesChanged, onSaveCatalogEntries });
-  propsRef.current = { editor, projectId, enabled, disabled, style, referenceMap, citationOrder, onAddPendingReferences, onReferencesChanged, onSaveCatalogEntries };
+  const propsRef = useRef({ editor, projectId, enabled, disabled, style, referenceMap, citationOrder, onAddPendingReferences, onReferencesChanged });
+  propsRef.current = { editor, projectId, enabled, disabled, style, referenceMap, citationOrder, onAddPendingReferences, onReferencesChanged };
 
   const clearTimer = () => {
     window.clearTimeout(timerRef.current);
@@ -364,7 +361,7 @@ export function SentenceSuggestions({
       }
       if (success.modelSource === "system") {
         }
-      cacheRef.current.set(key, success);
+      cacheRef.current.set(key, { result: success, storedAt: Date.now() });
       while (cacheRef.current.size > CACHE_MAX_ENTRIES) {
         cacheRef.current.delete(cacheRef.current.keys().next().value as string);
       }
@@ -417,9 +414,12 @@ export function SentenceSuggestions({
     if (activeRef.current && shownKeyRef.current === key) return;
     const cached = cacheRef.current.get(key);
     if (cached) {
-      const active = buildActive(cached, pos);
-      if (active) show(active, key);
-      return;
+      if (Date.now() - cached.storedAt < CACHE_TTL_MS) {
+        const active = buildActive(cached.result, pos);
+        if (active) show(active, key);
+        return;
+      }
+      cacheRef.current.delete(key);
     }
     if (inFlightRef.current?.key === key) return;
     void fetchSuggestion(key, pos, before, after, parentType as "paragraph" | "heading");
@@ -451,65 +451,75 @@ export function SentenceSuggestions({
     const $pos = current.state.doc.resolve(active.pos);
     const beforeText = $pos.parent.textBetween(0, $pos.parentOffset, "\n", "\0");
     const needsSpace = beforeText.length > 0 && !/\s$/.test(beforeText);
+    const pendingItems = [...new Map(active.pendingItems.map((item) => [item.key, item])).values()];
+    const pendingEntries = [...new Map(active.pendingEntries.map((entry) => [entry.key, entry])).values()];
+    const pendingKeys = new Set([...pendingItems.map((item) => item.key), ...pendingEntries.map((entry) => entry.key)]);
+    const marker = pendingKeys.size ? `suggestion-${++suggestionIdRef.current}` : "";
     const content: JSONContent[] = [];
     for (const segment of active.segments) {
       if (segment.kind === "text") content.push({ type: "text", text: segment.text });
-      else content.push({ type: "citation", attrs: { id: segment.key } });
+      else content.push({ type: "citation", attrs: { id: segment.key, pendingSuggestionId: pendingKeys.has(segment.key) ? marker : "" } });
     }
     if (needsSpace) {
       if (content[0]?.type === "text") content[0] = { type: "text", text: ` ${String(content[0].text ?? "")}` };
       else content.unshift({ type: "text", text: " " });
     }
 
-    const pendingItems = active.pendingItems;
-    const pendingEntries = active.pendingEntries;
     clearActive();
-    current.chain().focus().insertContentAt(active.pos, content).run();
+    if (pendingKeys.size) propsRef.current.onAddPendingReferences([
+      ...pendingItems.map(({ key, item }) => referenceFromLiteratureItem(key, item)),
+      ...pendingEntries.map((entry) => entry.reference),
+    ]);
+    if (!current.chain().focus().insertContentAt(active.pos, content).run()) {
+      if (pendingKeys.size) void propsRef.current.onReferencesChanged();
+      return;
+    }
+    const docAfterInsert = current.state.doc;
+    const insertedSize = content.reduce((size, node) => size + (node.type === "text" ? String(node.text ?? "").length : 1), 0);
     lastAcceptedRef.current = active.segments.map((segment) => segment.kind === "text" ? segment.text : " ").join("");
-    // The insert transaction re-arms the idle trigger, so the next sentence
-    // suggestion follows automatically.
+    if (!pendingKeys.size) return;
 
-    if (pendingItems.length) {
-      const { projectId: project, onAddPendingReferences: addPending, onReferencesChanged: referencesChanged } = propsRef.current;
-      addPending(pendingItems.map(({ key, item }) => referenceFromLiteratureItem(key, item)));
-      void (async () => {
-        try {
-          let bibliographyContent: string | undefined;
-          for (const { item } of pendingItems) {
-            const result = await saveLiteratureCitation({ projectId: project, item });
-            if (!result.success) {
-              toast.error("Could not save the suggested citation", { description: result.error });
-            } else {
-              bibliographyContent = result.bibliographyContent;
-            }
-          }
-          await referencesChanged();
-          announceWorkspaceChange(
-            bibliographyContent === undefined
-              ? undefined
-              : [{ path: PROJECT_BIBLIOGRAPHY_PATH, content: bibliographyContent }],
-          );
-        } catch (error) {
-          toast.error("Could not save the suggested citation", {
-            description: error instanceof Error ? error.message : undefined,
-          });
+    const settleCitations = (keys: Record<string, string> | null) => {
+      if (current.isDestroyed) return;
+      const doc = current.state.doc;
+      if (!keys && doc === docAfterInsert) {
+        current.view.dispatch(current.state.tr.delete(active.pos, active.pos + insertedSize));
+        return;
+      }
+      const marked: Array<{ pos: number; node: ProseMirrorNode }> = [];
+      doc.descendants((node, pos) => {
+        if (node.type.name === "citation" && node.attrs.pendingSuggestionId === marker) marked.push({ pos, node });
+      });
+      if (!marked.length) return;
+      // Most saves keep the generated key. The marker is transient and absent
+      // from markdown, so avoid an extra document edit (and autosave) then.
+      if (keys && marked.every(({ node }) => (keys[String(node.attrs.id)] ?? node.attrs.id) === node.attrs.id)) return;
+      const tr = current.state.tr;
+      for (const { pos, node } of marked.reverse()) {
+        if (keys) {
+          const savedKey = keys[String(node.attrs.id)] ?? node.attrs.id;
+          if (savedKey !== node.attrs.id) tr.setNodeMarkup(pos, undefined, { ...node.attrs, id: savedKey, pendingSuggestionId: "" });
         }
-      })();
-    }
-
-    if (pendingEntries.length) {
-      const { onAddPendingReferences: addPending, onSaveCatalogEntries: saveEntries } = propsRef.current;
-      addPending(pendingEntries.map((entry) => entry.reference));
-      void (async () => {
-        try {
-          await saveEntries(pendingEntries.map(({ key, bibtex }) => ({ key, bibtex })));
-        } catch (error) {
-          toast.error("Could not add the cited reference to references.bib", {
-            description: error instanceof Error ? error.message : undefined,
-          });
+        else {
+          const before = pos > 0 ? doc.textBetween(pos - 1, pos) : "";
+          const after = doc.textBetween(pos + node.nodeSize, Math.min(doc.content.size, pos + node.nodeSize + 1));
+          tr.delete(before === " " && /^[.,;:!?]/.test(after) ? pos - 1 : pos, pos + node.nodeSize);
         }
-      })();
-    }
+      }
+      current.view.dispatch(tr);
+    };
+    void (async () => {
+      try {
+        const result = await saveSuggestedReferences({ projectId: propsRef.current.projectId, items: pendingItems, entries: pendingEntries.map(({ key, bibtex }) => ({ key, bibtex })) });
+        if (!result.success) throw new Error(result.error);
+        settleCitations(result.keys);
+        announceWorkspaceChange([{ path: PROJECT_BIBLIOGRAPHY_PATH, content: result.bibliographyContent }]);
+      } catch (error) {
+        settleCitations(null);
+        void propsRef.current.onReferencesChanged();
+        toast.error("Could not save the suggested citation", { description: error instanceof Error ? error.message : undefined });
+      }
+    })();
   };
 
   acceptHandlerRef.current = accept;
@@ -580,12 +590,21 @@ export function SentenceSuggestions({
   // old configuration produced.
   useEffect(() => {
     cacheRef.current.clear();
+    requestSeqRef.current++;
+    inFlightRef.current = null;
+    if (processingRef.current) setProcessing(null);
     dismissedKeyRef.current = null;
     failedKeyRef.current = null;
     lastAcceptedRef.current = null;
     if (activeRef.current) clearActive();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsVersion]);
+
+  useEffect(() => {
+    const clearCache = () => cacheRef.current.clear();
+    window.addEventListener("beeblio:workspace-changed", clearCache);
+    return () => window.removeEventListener("beeblio:workspace-changed", clearCache);
+  }, []);
 
   return null;
 }
